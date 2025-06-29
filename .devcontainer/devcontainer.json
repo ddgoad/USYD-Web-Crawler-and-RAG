@@ -1,0 +1,97 @@
+// USD RAG Development Container Configuration
+// Optimized for Python, Azure, GenAI, and Retrieval Augmented Generation
+{
+	"name": "USYDRag",
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "usydrag-devcontainer",
+	"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+
+	// Environment variables for USD RAG development
+	"remoteEnv": {
+		"LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}",
+		"PYTHONPATH": "/workspaces/${localWorkspaceFolderBasename}",
+		"LANGCHAIN_TRACING_V2": "true",
+		"LANGCHAIN_PROJECT": "usyd-rag"
+	},
+
+	"features": {
+		"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+			"moby": true,
+			"installDockerBuildx": true,
+			"version": "latest",
+			"dockerDashComposeVersion": "none"
+		},
+		"ghcr.io/devcontainers/features/azure-cli:1": {
+			"version": "latest"
+		},
+		"ghcr.io/azure/azure-dev/azd:0": {
+			"version": "latest"
+		},
+		"ghcr.io/devcontainers/features/github-cli:1": {
+			"version": "latest"
+		},
+		"ghcr.io/devcontainers/features/node:1": {
+			"version": "lts"
+		},
+		"ghcr.io/devcontainers/features/git:1": {
+			"version": "latest"
+		}
+	},
+	
+	// Forward ports for common development servers
+	"forwardPorts": [8000, 8080, 5000, 3000, 8501, 7860],
+
+	// Run startup script after container creation
+	"postCreateCommand": "bash .devcontainer/startup.sh",
+
+	// Run as vscode user for security
+	"remoteUser": "vscode",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				// Python Development
+				"ms-python.python",
+				"ms-python.debugpy",
+				"ms-python.flake8",
+				"ms-python.black-formatter",
+				"ms-python.isort",
+				"ms-python.pylint",
+				
+				// Jupyter and Data Science
+				"ms-toolsai.jupyter",
+				"ms-toolsai.jupyter-keymap",
+				"ms-toolsai.jupyter-renderers",
+				"ms-toolsai.vscode-jupyter-cell-tags",
+				"ms-toolsai.vscode-jupyter-slideshow",
+				
+				// GitHub Integration
+				"GitHub.copilot",
+				"GitHub.copilot-chat",
+				"GitHub.vscode-pull-request-github",
+				
+				// Azure Tools
+				"ms-azuretools.vscode-azureresourcegroups",
+				"ms-azuretools.vscode-azurecontainerapps",
+				"ms-azuretools.vscode-azurefunctions",
+				"ms-azuretools.vscode-azureappservice",
+				"ms-azuretools.vscode-docker",
+				"ms-azuretools.azure-dev",
+				
+				// Web Scraping and Browser Testing
+				"ms-playwright.playwright",
+				
+				// Code Quality and Formatting
+				"ms-vscode.vscode-json",
+				"redhat.vscode-yaml",
+				"ms-vscode.makefile-tools",
+				
+				// Documentation
+				"ms-python.vscode-pylance",
+				"njpwerner.autodocstring",
+				
+				// Environment and Config
+				"ms-vscode.vscode-dotenv"
+			]
+		}
+	}
+}

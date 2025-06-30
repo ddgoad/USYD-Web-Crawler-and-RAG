@@ -42,7 +42,7 @@ fake-useragent>=2.0.3
 
 # ==================== AI & LANGUAGE MODELS ====================
 # OpenAI and Azure OpenAI integration
-openai==1.47.1
+openai>=1.55.3
 
 # Azure Cognitive Services (used by vector_store.py and llm_service.py)
 azure-search-documents==11.4.0

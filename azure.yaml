@@ -9,18 +9,3 @@ services:
     project: .
     language: python
     host: containerapp
-    
-hooks:
-  predeploy:
-    windows:
-      - echo "Building Docker image..."
-    posix:
-      - echo "Building Docker image..."
-  
-  postdeploy:
-    windows:
-      - echo "Running post-deployment validation..."
-      - python scripts/validate_deployment.py
-    posix:
-      - echo "Running post-deployment validation..."
-      - python scripts/validate_deployment.py

@@ -140,7 +140,7 @@ python-socketio==5.10.0
 # ==================== HTTP & ASYNC SUPPORT ====================
 # HTTP clients and async support
 httpx==0.25.2
-aiohttp==3.9.1
+aiohttp>=3.10.5
 aiofiles==23.2.1
 
 # ==================== DATA VALIDATION & SERIALIZATION ====================

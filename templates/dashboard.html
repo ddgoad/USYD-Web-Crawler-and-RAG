@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USYD Web Crawler & RAG - Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="dashboard-body">
+    <div class="dashboard">
+        <header class="dashboard-header">
+            <div class="header-left">
+                <h1>USYD Web Crawler & RAG</h1>
+                <span class="welcome-msg">Welcome back!</span>
+            </div>
+            <div class="header-right">
+                <button id="logout-btn" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Logout
+                </button>
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <!-- Left Panel: Web Scraping -->
+            <div class="panel left-panel">
+                <div class="panel-header">
+                    <h2><i class="fas fa-spider"></i> Web Scraping</h2>
+                </div>
+                
+                <div class="panel-content">
+                    <!-- Scraping Form -->
+                    <div class="section">
+                        <h3>Start New Scraping Job</h3>
+                        <form id="scraping-form" class="scraping-form">
+                            <div class="form-group">
+                                <label for="website-url">Website URL</label>
+                                <input 
+                                    type="url" 
+                                    id="website-url" 
+                                    name="url" 
+                                    placeholder="https://example.com" 
+                                    required
+                                >
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="scraping-type">Scraping Mode</label>
+                                <select id="scraping-type" name="type">
+                                    <option value="single">Single Page</option>
+                                    <option value="deep">Deep Crawl</option>
+                                    <option value="sitemap">Sitemap-based</option>
+                                </select>
+                            </div>
+                            
+                            <div id="deep-crawl-options" style="display: none;">
+                                <div class="form-group">
+                                    <label for="max-depth">Max Depth</label>
+                                    <input type="number" id="max-depth" min="1" max="5" value="3">
+                                </div>
+                                <div class="form-group">
+                                    <label for="max-pages">Max Pages</label>
+                                    <input type="number" id="max-pages" min="1" max="100" value="50">
+                                </div>
+                            </div>
+                            
+                            <div id="sitemap-options" style="display: none;">
+                                <div class="form-group">
+                                    <label for="sitemap-max-pages">Max Pages</label>
+                                    <input type="number" id="sitemap-max-pages" min="1" max="500" value="100">
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="primary-btn">
+                                <i class="fas fa-play"></i>
+                                Start Scraping
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- Scraping Jobs -->
+                    <div class="section">
+                        <h3>Recent Scraping Jobs</h3>
+                        <div id="scraping-jobs" class="jobs-list">
+                            {% for job in scraping_jobs %}
+                            <div class="job-item" data-job-id="{{ job.id }}">
+                                <div class="job-info">
+                                    <div class="job-url">{{ job.url }}</div>
+                                    <div class="job-meta">
+                                        <span class="job-type">{{ job.scraping_type }}</span>
+                                        <span class="job-date">{{ job.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                                    </div>
+                                </div>
+                                <div class="job-status status-{{ job.status }}">
+                                    {{ job.status }}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Panel: Vector Database and Chat -->
+            <div class="panel right-panel">
+                <div class="panel-header">
+                    <h2><i class="fas fa-database"></i> Vector Database & Chat</h2>
+                </div>
+                
+                <div class="panel-content">
+                    <!-- Vector Database Section -->
+                    <div class="section">
+                        <h3>Vector Databases</h3>
+                        
+                        <div class="form-group">
+                            <button id="create-vector-db-btn" class="secondary-btn">
+                                <i class="fas fa-plus"></i>
+                                Create Vector Database
+                            </button>
+                        </div>
+                        
+                        <div id="vector-databases" class="vector-dbs">
+                            {% for db in vector_dbs %}
+                            <div class="vector-db-item" data-db-id="{{ db.id }}">
+                                <div class="db-info">
+                                    <div class="db-name">{{ db.name }}</div>
+                                    <div class="db-meta">
+                                        <span class="db-docs">{{ db.document_count }} docs</span>
+                                        <span class="db-date">{{ db.created_at.strftime('%Y-%m-%d') }}</span>
+                                    </div>
+                                </div>
+                                <div class="db-status status-{{ db.status }}">
+                                    {{ db.status }}
+                                </div>
+                                <div class="db-actions">
+                                    {% if db.status == 'ready' %}
+                                    <button class="chat-btn" data-db-id="{{ db.id }}">
+                                        <i class="fas fa-comments"></i>
+                                        Chat
+                                    </button>
+                                    {% endif %}
+                                    <button class="delete-btn" data-db-id="{{ db.id }}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- Chat Interface -->
+                    <div class="section" id="chat-section" style="display: none;">
+                        <div class="chat-header">
+                            <h3>AI Chat</h3>
+                            <div class="chat-controls">
+                                <select id="model-select">
+                                    <option value="gpt-4o">GPT-4o</option>
+                                    <option value="o1-mini">o1-mini</option>
+                                </select>
+                                <select id="search-type">
+                                    <option value="hybrid">Hybrid Search</option>
+                                    <option value="semantic">Semantic Search</option>
+                                    <option value="keyword">Keyword Search</option>
+                                </select>
+                                <button id="close-chat-btn" class="close-btn">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="chat-messages" class="chat-messages">
+                            <div class="chat-message system-message">
+                                <div class="message-content">
+                                    <i class="fas fa-robot"></i>
+                                    Hello! I'm ready to help you analyze the scraped content. Ask me anything about the information in your vector database.
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="chat-input-container">
+                            <div class="chat-input-wrapper">
+                                <textarea 
+                                    id="chat-input" 
+                                    placeholder="Ask a question about the scraped content..."
+                                    rows="2"
+                                ></textarea>
+                                <button id="send-message-btn" class="send-btn">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Progress Modal -->
+        <div id="progress-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Scraping Progress</h3>
+                </div>
+                <div class="modal-body">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <div id="progress-message" class="progress-message">Starting...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Create Vector DB Modal -->
+        <div id="create-db-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Create Vector Database</h3>
+                    <button class="close-modal-btn" onclick="closeModal('create-db-modal')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="create-db-form">
+                        <div class="form-group">
+                            <label for="db-name">Database Name</label>
+                            <input 
+                                type="text" 
+                                id="db-name" 
+                                name="name" 
+                                placeholder="Enter database name" 
+                                required
+                            >
+                        </div>
+                        <div class="form-group">
+                            <label for="source-job">Source Scraping Job</label>
+                            <select id="source-job" name="scraping_job_id" required>
+                                <option value="">Select a completed scraping job</option>
+                            </select>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="secondary-btn" onclick="closeModal('create-db-modal')">
+                                Cancel
+                            </button>
+                            <button type="submit" class="primary-btn">
+                                Create Database
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

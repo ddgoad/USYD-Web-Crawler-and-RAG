@@ -187,7 +187,7 @@ tqdm==4.66.1
 
 # ==================== OPTIONAL FEATURES ====================
 # Image processing (for scraping pages with images)
-pillow==10.1.0
+pillow==10.4.0
 opencv-python==4.8.1.78
 
 # Email notifications (optional)

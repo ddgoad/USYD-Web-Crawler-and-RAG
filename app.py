@@ -26,11 +26,37 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/app.log'),
-        logging.StreamHandler()
+        logging.StreamHandler()  # Start with console logging only
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Create logs directory and add file handler after ensuring directory exists
+try:
+    os.makedirs("logs", exist_ok=True)
+    file_handler = logging.FileHandler('logs/app.log')
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logging.getLogger().addHandler(file_handler)
+    logger.info("File logging initialized successfully")
+except Exception as e:
+    logger.warning(f"Could not initialize file logging: {e}")
+
+logger.info("Starting USYD Web Crawler and RAG Application initialization...")
+
+# Validate critical environment variables
+required_env_vars = {
+    'DATABASE_URL': os.getenv('DATABASE_URL'),
+    'REDIS_URL': os.getenv('REDIS_URL'), 
+    'AZURE_OPENAI_ENDPOINT': os.getenv('AZURE_OPENAI_ENDPOINT'),
+    'AZURE_OPENAI_KEY': os.getenv('AZURE_OPENAI_KEY')
+}
+
+missing_vars = [var for var, value in required_env_vars.items() if not value]
+if missing_vars:
+    logger.warning(f"Missing environment variables: {missing_vars}")
+    logger.warning("Application will continue with default/fallback values")
+else:
+    logger.info("✓ All critical environment variables are set")
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -42,18 +68,55 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'Please log in to access this page.'
 
-# Initialize Celery for background tasks
-celery = Celery(
-    app.import_name,
-    broker=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
-    backend=os.getenv("REDIS_URL", "redis://localhost:6379/0")
-)
+# Initialize Celery for background tasks with fallback
+try:
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    logger.info(f"Connecting to Redis at: {redis_url}")
+    celery = Celery(
+        app.import_name,
+        broker=redis_url,
+        backend=redis_url
+    )
+    logger.info("✓ Celery initialized successfully")
+except Exception as e:
+    logger.warning(f"❌ Celery initialization failed: {e}")
+    # Create a dummy celery object to prevent import errors
+    celery = None
 
-# Initialize services
-auth_service = AuthService()
-scraping_service = ScrapingService()
-vector_service = VectorStoreService()
-llm_service = LLMService()
+# Initialize services with error handling
+try:
+    logger.info("Initializing authentication service...")
+    auth_service = AuthService()
+    logger.info("✓ AuthService initialized successfully")
+except Exception as e:
+    logger.error(f"❌ Failed to initialize AuthService: {e}")
+    raise
+
+try:
+    logger.info("Initializing scraping service...")
+    scraping_service = ScrapingService()
+    logger.info("✓ ScrapingService initialized successfully")
+except Exception as e:
+    logger.error(f"❌ Failed to initialize ScrapingService: {e}")
+    raise
+
+try:
+    logger.info("Initializing vector store service...")
+    vector_service = VectorStoreService()
+    logger.info("✓ VectorStoreService initialized successfully")
+except Exception as e:
+    logger.error(f"❌ Failed to initialize VectorStoreService: {e}")
+    raise
+
+try:
+    logger.info("Initializing LLM service...")
+    llm_service = LLMService()
+    logger.info("✓ LLMService initialized successfully")
+except Exception as e:
+    logger.error(f"❌ Failed to initialize LLMService: {e}")
+    raise
+
+logger.info("All services initialized successfully!")
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -355,11 +418,22 @@ def internal_error(error):
 
 if __name__ == "__main__":
     # Create logs directory if it doesn't exist
-    os.makedirs("logs", exist_ok=True)
+    try:
+        os.makedirs("logs", exist_ok=True)
+        logger.info("Logs directory created/verified successfully")
+    except Exception as e:
+        logger.warning(f"Could not create logs directory: {e}")
     
     # Run the Flask app
     port = int(os.getenv("PORT", 5000))
     debug = os.getenv("FLASK_ENV") == "development"
     
     logger.info(f"Starting USYD Web Crawler and RAG application on port {port}")
-    app.run(host="0.0.0.0", port=port, debug=debug)
+    logger.info(f"Debug mode: {debug}")
+    logger.info(f"Environment: {os.getenv('FLASK_ENV', 'production')}")
+    
+    try:
+        app.run(host="0.0.0.0", port=port, debug=debug)
+    except Exception as e:
+        logger.error(f"Failed to start Flask application: {e}")
+        raise

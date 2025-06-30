@@ -16,6 +16,7 @@ class AuthService:
     def __init__(self):
         self.db_url = os.getenv("DATABASE_URL", "sqlite:///usydrag.db")
         self.db_path = self.db_url.replace("sqlite:///", "")
+        self.db_initialized = False
         self._init_database()
     
     def _get_db_connection(self):
@@ -38,6 +39,7 @@ class AuthService:
     def _init_database(self):
         """Initialize database tables if they don't exist"""
         try:
+            logger.info(f"Initializing database: {self.db_url}")
             conn = self._get_db_connection()
             cursor = conn.cursor()
             
@@ -61,10 +63,12 @@ class AuthService:
             self._create_default_admin_user(conn)
             
             conn.close()
+            self.db_initialized = True
             logger.info("Database initialized successfully")
         except Exception as e:
             logger.error(f"Database initialization failed: {str(e)}")
-            raise
+            logger.warning("Application will continue with limited functionality")
+            self.db_initialized = False
     
     def _create_default_admin_user(self, conn):
         """Create default admin user if it doesn't exist"""

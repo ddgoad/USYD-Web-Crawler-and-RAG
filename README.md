@@ -20,7 +20,7 @@ A comprehensive web application that enables users to scrape websites, convert c
 - **Vector Database Creation**: Automatic conversion of scraped content to embeddings
 - **Multiple Search Types**: Semantic, keyword, and hybrid search capabilities
 - **Source Attribution**: All AI responses include proper citations and links
-- **Model Selection**: Choose between GPT-4o and o1-mini models
+- **Model Selection**: Choose between GPT-4o and o3-mini models
 - **Configurable Parameters**: Adjust temperature, token limits, and search settings
 
 ### 💬 Interactive Chat Interface
@@ -43,7 +43,7 @@ The application follows a modern, scalable architecture deployed on Azure:
 - **Backend**: Flask-based API with RESTful endpoints
 - **Web Scraping**: Crawl4AI for intelligent content extraction
 - **Vector Database**: Azure AI Search for semantic and keyword search
-- **AI Integration**: Azure OpenAI with GPT-4o and o1-mini models
+- **AI Integration**: Azure OpenAI with GPT-4o and o3-mini models
 - **Database**: PostgreSQL for user data and metadata
 - **Caching**: Redis for session management and task queues
 - **Hosting**: Azure Container Apps with auto-scaling
@@ -174,7 +174,7 @@ The application follows a modern, scalable architecture deployed on Azure:
 ### Core Technologies
 - **Backend**: Flask 3.0+, Python 3.9+
 - **Web Scraping**: Crawl4AI 0.3+
-- **AI Services**: Azure OpenAI (GPT-4o, o1-mini, text-embedding-3-small)
+- **AI Services**: Azure OpenAI (GPT-4o, o3-mini, text-embedding-3-small)
 - **Vector Database**: Azure AI Search
 - **Database**: PostgreSQL (Azure Database for PostgreSQL)
 - **Caching**: Redis (Azure Cache for Redis)

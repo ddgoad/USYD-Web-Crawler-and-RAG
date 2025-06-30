@@ -60,6 +60,11 @@ class Dashboard {
             this.closeChatInterface();
         });
         
+        // Model selection change handler
+        document.getElementById('model-select').addEventListener('change', (e) => {
+            this.onModelSelectionChange(e.target.value);
+        });
+        
         // Dynamic event delegation for buttons
         document.addEventListener('click', (e) => {
             if (e.target.matches('.chat-btn')) {
@@ -435,6 +440,22 @@ class Dashboard {
         this.currentVectorDB = null;
     }
     
+    onModelSelectionChange(selectedModel) {
+        // Provide feedback about the selected model
+        const modelDescriptions = {
+            'gpt-4o': 'Advanced reasoning and comprehensive responses',
+            'o3-mini': 'Fast, efficient responses with good accuracy'
+        };
+        
+        // Show a brief notification about the model change
+        this.showInfoMessage(`Selected ${selectedModel.toUpperCase()}: ${modelDescriptions[selectedModel]}`);
+        
+        // If there's an active chat session, inform the user that the model will apply to new messages
+        if (this.currentChatSession) {
+            this.addSystemMessage(`Model changed to ${selectedModel.toUpperCase()}. This will apply to your next message.`);
+        }
+    }
+    
     async sendChatMessage() {
         const input = document.getElementById('chat-input');
         const message = input.value.trim();
@@ -533,13 +554,17 @@ class Dashboard {
         this.showToast(message, 'error');
     }
     
+    showInfoMessage(message) {
+        this.showToast(message, 'info');
+    }
+    
     showToast(message, type) {
         // Create toast element
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
         toast.innerHTML = `
             <div class="toast-content">
-                <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
                 <span>${message}</span>
             </div>
         `;
@@ -555,7 +580,7 @@ class Dashboard {
             fontWeight: '500',
             zIndex: '9999',
             minWidth: '300px',
-            backgroundColor: type === 'success' ? '#10b981' : '#ef4444',
+            backgroundColor: type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6',
             boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
             animation: 'slideInRight 0.3s ease-out'
         });
@@ -573,6 +598,23 @@ class Dashboard {
                 document.body.removeChild(toast);
             }, 300);
         }, 5000);
+    }
+    
+    addSystemMessage(message) {
+        if (!this.currentChatSession) return;
+        
+        const messagesContainer = document.getElementById('chat-messages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'chat-message system-message';
+        messageDiv.innerHTML = `
+            <div class="message-content">
+                <i class="fas fa-info-circle"></i>
+                ${message}
+            </div>
+        `;
+        
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 }
 

@@ -628,8 +628,21 @@ h4 { font-size: var(--font-size-lg); }
 
 .chat-controls {
     display: flex;
-    gap: var(--spacing-sm);
+    gap: var(--spacing-lg);
     align-items: center;
+    flex-wrap: wrap;
+}
+
+.chat-controls .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.chat-controls .control-group label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--text-secondary);
 }
 
 .chat-controls select {
@@ -638,6 +651,19 @@ h4 { font-size: var(--font-size-lg); }
     border-radius: var(--radius-lg);
     font-size: var(--font-size-sm);
     background: var(--bg-primary);
+    min-width: 200px;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+}
+
+.chat-controls select:hover {
+    border-color: var(--border-hover);
+}
+
+.chat-controls select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgb(37 99 235 / 0.1);
 }
 
 .chat-messages {

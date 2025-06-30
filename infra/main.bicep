@@ -65,17 +65,7 @@ module redis 'redis.bicep' = {
   }
 }
 
-// Azure OpenAI Service
-module openai 'openai.bicep' = {
-  name: 'openai'
-  scope: rg
-  params: {
-    openaiServiceName: '${abbrs.cognitiveServicesAccounts}${resourceToken}'
-    location: location
-    tags: tags
-    principalId: principalId
-  }
-}
+// Note: Azure OpenAI Service is pre-provisioned and accessed via environment variables
 
 // Azure AI Search Service
 module search 'search.bicep' = {
@@ -98,8 +88,8 @@ module containerApp 'containerapp.bicep' = {
     location: location
     environmentId: containerAppsEnvironment.outputs.environmentId
     imageName: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
-    azureOpenAIEndpoint: openai.outputs.endpoint
-    azureOpenAIKey: ''
+    azureOpenAIEndpoint: 'https://dgopenai2211200906498164.openai.azure.com/'
+    azureOpenAIKey: 'EdKxnIPfLdrlOCpGGgOajk7fFJeopjLec4IHPk8lCAsLrUYIdIW2JQQJ99AKACL93NaXJ3w3AAAAACOGh1w8'
     azureSearchEndpoint: search.outputs.endpoint
     azureSearchKey: ''
     databaseUrl: 'postgresql://${database.outputs.administratorLogin}@${database.outputs.serverFqdn}:5432/${database.outputs.databaseName}?sslmode=require'
@@ -121,7 +111,7 @@ output AZURE_TENANT_ID string = tenant().tenantId
 output RESOURCE_GROUP_ID string = rg.id
 
 // Service outputs
-output AZURE_OPENAI_ENDPOINT string = openai.outputs.endpoint
+output AZURE_OPENAI_ENDPOINT string = 'https://dgopenai2211200906498164.openai.azure.com/'
 output AZURE_SEARCH_ENDPOINT string = search.outputs.endpoint
 output DATABASE_URL string = 'postgresql://${database.outputs.administratorLogin}@${database.outputs.serverFqdn}:5432/${database.outputs.databaseName}?sslmode=require'
 output REDIS_URL string = 'rediss://${redis.outputs.redisHostName}:${redis.outputs.redisPort}/0'

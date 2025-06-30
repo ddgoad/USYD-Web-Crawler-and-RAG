@@ -130,7 +130,7 @@ def test_azure_openai_connection():
         # Test chat models
         models_to_test = [
             ("gpt-4o", os.getenv('AZURE_OPENAI_GPT4O_DEPLOYMENT', 'gpt-4o')),
-            ("o1-mini", os.getenv('AZURE_OPENAI_O1_MINI_DEPLOYMENT', 'o1-mini'))
+            ("o3-mini", os.getenv('AZURE_OPENAI_O3_MINI_DEPLOYMENT', 'o3-mini'))
         ]
         
         for model_name, deployment_name in models_to_test:

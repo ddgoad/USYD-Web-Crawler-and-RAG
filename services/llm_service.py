@@ -22,9 +22,9 @@ class LLMService:
         
         # Initialize Azure OpenAI client
         self.openai_client = AzureOpenAI(
-            api_key=os.getenv("AZURE_OPENAI_KEY", ""),
+            api_key=os.getenv("AZURE_OPENAI_KEY", "EdKxnIPfLdrlOCpGGgOajk7fFJeopjLec4IHPk8lCAsLrUYIdIW2JQQJ99AKACL93NaXJ3w3AAAAACOGh1w8"),
             api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2023-12-01-preview"),
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", "")
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", "https://dgopenai2211200906498164.openai.azure.com/")
         )
         
         # Initialize vector store service for RAG
@@ -38,8 +38,8 @@ class LLMService:
                 "temperature": 0.7,
                 "system_prompt": self._get_system_prompt()
             },
-            "o1-mini": {
-                "deployment_name": os.getenv("AZURE_OPENAI_O1_MINI_DEPLOYMENT", "o1-mini"),
+            "o3-mini": {
+                "deployment_name": os.getenv("AZURE_OPENAI_O3_MINI_DEPLOYMENT", "o3-mini"),
                 "max_tokens": 4096,
                 "temperature": 0.3,
                 "system_prompt": self._get_system_prompt()

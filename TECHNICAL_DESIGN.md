@@ -26,7 +26,7 @@ The USYD Web Crawler and RAG (Retrieval-Augmented Generation) solution is a web 
 - **AI Chat Interface**: Interactive Q&A using Azure OpenAI models
 - **User Management**: Simple authentication and session management
 - **Progress Tracking**: Real-time feedback on scraping and vectorization processes
-- **Multi-Model Support**: GPT-4o and o1-mini model options
+- **Multi-Model Support**: GPT-4o and o3-mini model options
 - **Flexible Search**: Keyword, semantic, and hybrid search capabilities
 
 ## Solution Architecture Overview
@@ -40,7 +40,7 @@ The user interface is built as a modern, responsive web application using Flask 
 
 1. **Web Scraping Control Panel**: This section allows users to configure and initiate web scraping operations. Users can specify the target URL, choose scraping modes (single page, deep crawl, or sitemap-based), and set parameters like crawl depth and page limits. When a scraping job is initiated, the interface provides real-time progress feedback through WebSocket connections, showing users exactly what's happening as their content is being processed.
 
-2. **Chat Interface**: Once vector databases are created from scraped content, users can select a database and interact with it through an AI-powered chat interface. The interface allows users to choose between different AI models (GPT-4o or o1-mini), adjust search parameters (semantic, keyword, or hybrid search), and modify AI behavior settings like temperature.
+2. **Chat Interface**: Once vector databases are created from scraped content, users can select a database and interact with it through an AI-powered chat interface. The interface allows users to choose between different AI models (GPT-4o or o3-mini), adjust search parameters (semantic, keyword, or hybrid search), and modify AI behavior settings like temperature.
 
 #### **Backend API Layer - Business Logic**
 The Flask-based backend serves as the orchestration layer that coordinates all system components. It handles user authentication, manages scraping jobs, interfaces with Azure services, and provides RESTful API endpoints for the frontend. The backend is designed to be stateless and scalable, with session management handled through Redis for high availability.
@@ -433,7 +433,7 @@ POST /api/vector-dbs/{db_id}/search
 POST /api/chat/start
 - Body: {
     "vector_db_id": "string",
-    "model": "gpt-4o|o1-mini",
+    "model": "gpt-4o|o3-mini",
     "config": {
       "temperature": float,
       "max_tokens": integer
@@ -541,7 +541,7 @@ GET /api/chat/history/{session_id}
                     <div class="chat-config">
                         <select id="model-select">
                             <option value="gpt-4o">GPT-4o</option>
-                            <option value="o1-mini">o1-mini</option>
+                            <option value="o3-mini">o3-mini</option>
                         </select>
                         <select id="search-type">
                             <option value="semantic">Semantic Search</option>
@@ -1021,7 +1021,7 @@ The testing strategy for the USYD Web Crawler and RAG solution emphasizes **real
     - [ ] Technical questions requiring specific domain knowledge
     - [ ] Comparative analysis questions across multiple documents
   
-  - [ ] **o1-mini Model Testing**:
+  - [ ] **o3-mini Model Testing**:
     - [ ] Simple factual questions with direct answers
     - [ ] Definition and explanation requests
     - [ ] Quick reference and lookup queries
@@ -1492,14 +1492,14 @@ resource gpt4oDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-
   }
 }
 
-// Deploy o1-mini model
-resource o1miniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
+// Deploy o3-mini model
+resource o3miniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
   parent: openaiService
-  name: 'o1-mini'
+  name: 'o3-mini'
   properties: {
     model: {
       format: 'OpenAI'
-      name: 'o1-mini'
+      name: 'o3-mini'
       version: '2024-09-12'
     }
     scaleSettings: {
@@ -2357,16 +2357,16 @@ def test_azure_openai_connection():
             except Exception as e:
                 logger.warning(f"⚠️  GPT-4o model test failed: {e}")
             
-            # Test o1-mini model
+            # Test o3-mini model
             try:
                 chat_response = client.chat.completions.create(
-                    model="o1-mini",
+                    model="o3-mini",
                     messages=[{"role": "user", "content": "Hello, this is a test."}],
                     max_tokens=10
                 )
-                logger.info("✓ o1-mini model accessible")
+                logger.info("✓ o3-mini model accessible")
             except Exception as e:
-                logger.warning(f"⚠️  o1-mini model test failed: {e}")
+                logger.warning(f"⚠️  o3-mini model test failed: {e}")
             
             return True
         else:

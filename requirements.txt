@@ -86,7 +86,7 @@ qdrant-client==1.6.9
 # Text embedding and NLP processing
 sentence-transformers==2.2.2
 transformers==4.36.2
-tiktoken==0.5.2
+tiktoken==0.7.0
 tokenizers==0.15.0
 nltk>=3.9.1
 spacy==3.7.2

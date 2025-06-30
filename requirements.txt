@@ -240,7 +240,6 @@ schedule==1.2.0
 
 # HTTP and Async
 httpx==0.25.2
-aiohttp==3.9.1
 aiofiles==23.2.1
 
 # Text and Content Analysis

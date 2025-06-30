@@ -1,5 +1,5 @@
-# USD RAG - Complete Requirements for Web Crawling and Retrieval Augmented Generation
-# All dependencies needed for production deployment and development
+# USD RAG - Essential Requirements for USYD Web Crawler and RAG Application
+# Only dependencies actually used by the application
 
 # ==================== CORE FRAMEWORK ====================
 # Flask web application framework and extensions
@@ -13,231 +13,59 @@ gunicorn==21.2.0
 werkzeug==3.0.1
 
 # ==================== WEB SCRAPING & DATA COLLECTION ====================
-# Primary web scraping engine
+# Primary web scraping engine (crawl4ai 0.6.0 and its core dependencies)
 crawl4ai==0.6.0
-
-# Supporting scraping libraries
-requests~=2.26
-urllib3==2.0.7
-beautifulsoup4~=4.12
+aiosqlite~=0.20
 lxml~=5.3
-scrapy==2.11.0
-selenium==4.15.2
-webdriver-manager==4.0.1
-playwright>=1.49.0
-newspaper3k==0.2.8
-trafilatura==1.6.4
-feedparser==6.0.10
-html2text==2024.2.26
-scrapy-user-agents==0.1.1
-fake-useragent>=2.0.3
-
-# Additional crawl4ai dependencies
 litellm>=1.53.1
+numpy>=1.26.0,<3
+pillow~=10.4
+playwright>=1.49.0
+python-dotenv~=1.0
+requests~=2.26
+beautifulsoup4~=4.12
 tf-playwright-stealth>=1.1.0
 xxhash~=3.4
 rank-bm25~=0.2
+aiofiles>=24.1.0
 colorama~=0.4
 snowballstemmer~=2.2
+pydantic>=2.10
 pyOpenSSL>=24.3.0
+psutil>=6.1.1
+nltk>=3.9.1
+rich>=13.9.4
 cssselect>=1.2.0
+chardet>=5.2.0
 brotli>=1.1.0
-aiosqlite~=0.20
-
-# ==================== DOCUMENT PROCESSING ====================
-# PDF and document extraction
-pypdf2==3.0.1
-pdfplumber==0.9.0
-python-docx==0.8.11
-python-pptx==0.6.22
-openpyxl==3.1.2
-python-magic==0.4.27
+fake-useragent>=2.0.3
 
 # ==================== AI & LANGUAGE MODELS ====================
 # OpenAI and Azure OpenAI integration
 openai==1.47.1
 
-# Azure Cognitive Services
-azure-cognitiveservices-language-textanalytics==0.2.2
-azure-ai-textanalytics==5.3.0
+# Azure Cognitive Services (used by vector_store.py and llm_service.py)
 azure-search-documents==11.4.0
 azure-identity==1.15.0
 azure-storage-blob==12.19.0
 azure-keyvault-secrets==4.7.0
 
-# ==================== LANGCHAIN ECOSYSTEM ====================
-# LangChain framework for RAG implementation
-langchain==0.0.350
-langchain-community==0.0.7
-langchain-core==0.1.3
-langchain-openai==0.0.2
-langchain-experimental==0.0.47
-langsmith==0.0.69
-
-# ==================== VECTOR DATABASES & SEARCH ====================
-# Primary vector store (Azure AI Search is cloud-based)
-# Alternative local vector databases for development/testing
-chromadb==0.4.18
-faiss-cpu==1.7.4
-pinecone-client==2.2.4
-weaviate-client==3.25.3
-qdrant-client==1.6.9
-
-# ==================== EMBEDDINGS & TEXT PROCESSING ====================
-# Text embedding and NLP processing
-sentence-transformers==2.2.2
-transformers==4.36.2
+# ==================== TEXT PROCESSING ====================
+# Text processing (used by vector_store.py)
 tiktoken==0.7.0
-tokenizers==0.15.0
-nltk>=3.9.1
-spacy==3.7.2
-textstat==0.7.3
-langdetect==1.0.9
 
 # ==================== BACKGROUND TASK PROCESSING ====================
-# Celery for async task processing
+# Celery for async task processing (used by app.py, worker.py, scraper.py)
 celery==5.3.0
 redis==5.0.1
 kombu==5.3.4
 
 # ==================== DATABASE & PERSISTENCE ====================
-# PostgreSQL database integration
+# PostgreSQL database integration (used by all services)
 psycopg2-binary==2.9.9
 sqlalchemy==2.0.23
 alembic==1.12.1
 
-# ==================== DATA PROCESSING & UTILITIES ====================
-# Data manipulation and utilities
-pandas==2.1.4
-numpy>=1.26.0,<3
-scikit-learn==1.3.2
-python-dotenv~=1.0
-
-tenacity==8.2.3
-python-multipart==0.0.6
-validators==0.22.0
-chardet>=5.2.0
+# ==================== UTILITIES ====================
+# Standard utilities used across the application
 python-dateutil==2.8.2
-pytz==2023.3
-
-# ==================== SECURITY & AUTHENTICATION ====================
-# Security and authentication
-cryptography==43.0.3
-bcrypt==4.1.2
-pyotp==2.9.0
-
-# ==================== MONITORING & LOGGING ====================
-# Application monitoring and logging
-structlog==23.2.0
-python-json-logger==2.0.7
-opencensus-ext-azure==1.1.11
-opencensus-ext-flask==0.8.0
-opencensus-ext-requests==0.8.0
-healthcheck==1.3.3
-psutil>=6.1.1
-
-# ==================== PERFORMANCE & CACHING ====================
-# Performance optimization
-cachetools==5.3.2
-memory-profiler==0.61.0
-flask-limiter==3.5.0
-
-# ==================== REAL-TIME COMMUNICATION ====================
-# WebSocket support for real-time UI updates
-websockets==12.0
-flask-socketio==5.3.6
-python-socketio==5.10.0
-
-# ==================== HTTP & ASYNC SUPPORT ====================
-# HTTP clients and async support
-httpx==0.27.2
-aiohttp>=3.10.5
-aiofiles>=24.1.0
-
-# ==================== DATA VALIDATION & SERIALIZATION ====================
-# Data validation and serialization
-marshmallow==3.20.1
-cerberus==1.3.5
-jsonschema==4.23.0
-
-# ==================== DEVELOPMENT & TESTING ====================
-# Testing frameworks and tools
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
-pytest-mock==3.12.0
-pytest-flask==1.3.0
-pytest-postgresql==5.0.0
-pytest-redis==3.0.2
-locust==2.17.0
-
-# Code quality and formatting
-black==23.11.0
-flake8==6.1.0
-isort==5.12.0
-mypy==1.7.1
-pre-commit==3.5.0
-bandit==1.7.5
-safety==2.3.5
-
-# ==================== CLI & UTILITIES ====================
-# Command line tools and utilities
-click==8.1.7
-rich>=13.9.4
-tqdm==4.66.1
-
-# ==================== OPTIONAL FEATURES ====================
-# Image processing (for scraping pages with images)
-pillow~=10.4
-opencv-python==4.8.1.78
-
-# Email notifications (optional)
-flask-mail==0.9.1
-sendgrid==6.10.0
-
-# Scheduling and automation
-apscheduler==3.10.4
-schedule==1.2.0
-
-# Configuration management
-python-decouple==3.8
-configparser==6.0.0
-toml==0.10.2
-
-# XML processing
-xmltodict==0.13.0
-
-# Azure SDK
-azure-storage-file-datalake==12.13.0
-azure-cosmos==4.5.1
-
-# Database Connectivity
-pymongo==4.6.0
-
-# Web Framework and API
-fastapi==0.104.1
-uvicorn==0.24.0
-streamlit==1.28.2
-gradio==4.8.0
-
-# Data Processing and Analysis
-scipy==1.11.4
-matplotlib==3.8.2
-seaborn==0.13.0
-plotly==5.17.0
-
-# Utilities and Configuration
-pydantic>=2.10
-loguru==0.7.2
-
-# HTTP and Async
-
-# Text and Content Analysis
-readability==0.3.1
-yake==0.4.8
-
-# Monitoring and Observability
-prometheus-client==0.19.0
-
-# Security and Authentication
-pyjwt==2.8.0

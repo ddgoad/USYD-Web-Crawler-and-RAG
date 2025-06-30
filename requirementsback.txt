@@ -14,34 +14,35 @@ werkzeug==3.0.1
 
 # ==================== WEB SCRAPING & DATA COLLECTION ====================
 # Primary web scraping engine
-crawl4ai==0.3.0
+crawl4ai==0.6.0
 
 # Supporting scraping libraries
-requests==2.32.3
+requests~=2.26
 urllib3==2.0.7
-beautifulsoup4==4.12.3
-lxml==5.3.0
+beautifulsoup4~=4.12
+lxml~=5.3
 scrapy==2.11.0
 selenium==4.15.2
 webdriver-manager==4.0.1
-playwright==1.47.0
+playwright>=1.49.0
 newspaper3k==0.2.8
 trafilatura==1.6.4
 feedparser==6.0.10
 html2text==2024.2.26
 scrapy-user-agents==0.1.1
-fake-useragent==1.4.0
+fake-useragent>=2.0.3
 
 # Additional crawl4ai dependencies
-litellm==1.48.0
+litellm>=1.53.1
 tf-playwright-stealth>=1.1.0
-xxhash>=3.4.0
-rank-bm25>=0.2.0
-colorama>=0.4.0
-snowballstemmer>=2.2.0
+xxhash~=3.4
+rank-bm25~=0.2
+colorama~=0.4
+snowballstemmer~=2.2
 pyOpenSSL>=24.3.0
 cssselect>=1.2.0
 brotli>=1.1.0
+aiosqlite~=0.20
 
 # ==================== DOCUMENT PROCESSING ====================
 # PDF and document extraction
@@ -108,9 +109,9 @@ alembic==1.12.1
 # ==================== DATA PROCESSING & UTILITIES ====================
 # Data manipulation and utilities
 pandas==2.1.4
-numpy==2.1.1
+numpy>=1.26.0,<3
 scikit-learn==1.3.2
-python-dotenv>=1.0.0
+python-dotenv~=1.0
 
 tenacity==8.2.3
 python-multipart==0.0.6
@@ -133,7 +134,7 @@ opencensus-ext-azure==1.1.11
 opencensus-ext-flask==0.8.0
 opencensus-ext-requests==0.8.0
 healthcheck==1.3.3
-psutil==6.0.0
+psutil>=6.1.1
 
 # ==================== PERFORMANCE & CACHING ====================
 # Performance optimization
@@ -187,7 +188,7 @@ tqdm==4.66.1
 
 # ==================== OPTIONAL FEATURES ====================
 # Image processing (for scraping pages with images)
-pillow==10.4.0
+pillow~=10.4
 opencv-python==4.8.1.78
 
 # Email notifications (optional)
@@ -226,7 +227,7 @@ seaborn==0.13.0
 plotly==5.17.0
 
 # Utilities and Configuration
-pydantic==2.9.2
+pydantic>=2.10
 loguru==0.7.2
 
 # HTTP and Async

@@ -43,19 +43,34 @@ class AuthService:
             conn = self._get_db_connection()
             cursor = conn.cursor()
             
-            # Create users table for SQLite
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id TEXT PRIMARY KEY,
-                    username TEXT UNIQUE NOT NULL,
-                    email TEXT UNIQUE NOT NULL,
-                    password_hash TEXT NOT NULL,
-                    is_active BOOLEAN DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_login TIMESTAMP,
-                    preferences TEXT DEFAULT '{}'
-                )
-            """)
+            # Create users table - handle both SQLite and PostgreSQL
+            if self.db_url.startswith("sqlite:"):
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id TEXT PRIMARY KEY,
+                        username TEXT UNIQUE NOT NULL,
+                        email TEXT UNIQUE NOT NULL,
+                        password_hash TEXT NOT NULL,
+                        is_active BOOLEAN DEFAULT 1,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        last_login TIMESTAMP,
+                        preferences TEXT DEFAULT '{}'
+                    )
+                """)
+            else:
+                # PostgreSQL schema
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id TEXT PRIMARY KEY,
+                        username TEXT UNIQUE NOT NULL,
+                        email TEXT UNIQUE NOT NULL,
+                        password_hash TEXT NOT NULL,
+                        is_active BOOLEAN DEFAULT TRUE,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        last_login TIMESTAMP,
+                        preferences TEXT DEFAULT '{}'
+                    )
+                """)
             
             conn.commit()
             
@@ -67,7 +82,9 @@ class AuthService:
             logger.info("Database initialized successfully")
         except Exception as e:
             logger.error(f"Database initialization failed: {str(e)}")
-            logger.warning("Application will continue with limited functionality")
+            logger.warning(
+                "Application will continue with limited functionality"
+            )
             self.db_initialized = False
     
     def _create_default_admin_user(self, conn):

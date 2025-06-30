@@ -1,4 +1,4 @@
-targetScope = 'subscription'
+targetScope = 'resourceGroup'
 
 @minLength(1)
 @maxLength(64)
@@ -12,28 +12,13 @@ param location string
 @description('Id of the user or app to assign application roles')
 param principalId string = ''
 
-// Optional parameters to override the default azd resource naming conventions.
-// Add the following to main.parameters.json to provide values:
-// "resourceGroupName": {
-//      "value": "myGroupName"
-// }
-param resourceGroupName string = ''
-
 var abbrs = loadJsonContent('./abbreviations.json')
-var resourceToken = toLower(uniqueString(subscription().id, environmentName))
+var resourceToken = toLower(uniqueString(subscription().id, resourceGroup().id, environmentName))
 var tags = { 'azd-env-name': environmentName }
-
-// Organize resources in a resource group
-resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
-  name: !empty(resourceGroupName) ? resourceGroupName : '${abbrs.resourcesResourceGroups}${environmentName}'
-  location: location
-  tags: tags
-}
 
 // Container apps environment
 module containerAppsEnvironment 'container-apps-environment.bicep' = {
   name: 'container-apps-environment'
-  scope: rg
   params: {
     name: '${abbrs.appManagedEnvironments}${resourceToken}'
     location: location
@@ -44,7 +29,6 @@ module containerAppsEnvironment 'container-apps-environment.bicep' = {
 // PostgreSQL database
 module database 'database.bicep' = {
   name: 'database'
-  scope: rg
   params: {
     serverName: '${abbrs.dBforPostgreSQLServers}${resourceToken}'
     location: location
@@ -57,7 +41,6 @@ module database 'database.bicep' = {
 // Redis Cache
 module redis 'redis.bicep' = {
   name: 'redis'
-  scope: rg
   params: {
     cacheName: '${abbrs.cacheRedis}${resourceToken}'
     location: location
@@ -70,7 +53,6 @@ module redis 'redis.bicep' = {
 // Azure AI Search Service
 module search 'search.bicep' = {
   name: 'search'
-  scope: rg
   params: {
     searchServiceName: '${abbrs.searchSearchServices}${resourceToken}'
     location: location
@@ -82,7 +64,6 @@ module search 'search.bicep' = {
 // Container App
 module containerApp 'containerapp.bicep' = {
   name: 'containerapp'
-  scope: rg
   params: {
     containerAppName: '${abbrs.appContainerApps}${resourceToken}'
     location: location
@@ -91,9 +72,9 @@ module containerApp 'containerapp.bicep' = {
     azureOpenAIEndpoint: 'https://dgopenai2211200906498164.openai.azure.com/'
     azureOpenAIKey: 'EdKxnIPfLdrlOCpGGgOajk7fFJeopjLec4IHPk8lCAsLrUYIdIW2JQQJ99AKACL93NaXJ3w3AAAAACOGh1w8'
     azureSearchEndpoint: search.outputs.endpoint
-    azureSearchKey: ''
-    databaseUrl: 'postgresql://${database.outputs.administratorLogin}@${database.outputs.serverFqdn}:5432/${database.outputs.databaseName}?sslmode=require'
-    redisUrl: 'rediss://${redis.outputs.redisHostName}:${redis.outputs.redisPort}/0'
+    azureSearchKey: listAdminKeys(resourceId('Microsoft.Search/searchServices', '${abbrs.searchSearchServices}${resourceToken}'), '2023-11-01').primaryKey
+    databaseUrl: 'postgresql://${database.outputs.administratorLogin}:P%40ssw0rd123%21${resourceToken}@${database.outputs.serverFqdn}:5432/${database.outputs.databaseName}?sslmode=require'
+    redisUrl: 'rediss://:${listKeys(resourceId('Microsoft.Cache/redis', '${abbrs.cacheRedis}${resourceToken}'), '2023-08-01').primaryKey}@${redis.outputs.redisHostName}:${redis.outputs.redisPort}/0'
     secretKey: 'usyd-rag-secret-key-${resourceToken}'
     userAssignedIdentityId: containerAppsEnvironment.outputs.userAssignedIdentityId
     registryLoginServer: containerAppsEnvironment.outputs.registryLoginServer
@@ -108,11 +89,11 @@ output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerAppsEnvironment.outpu
 output AZURE_CONTAINER_REGISTRY_NAME string = containerAppsEnvironment.outputs.registryName
 output AZURE_LOCATION string = location
 output AZURE_TENANT_ID string = tenant().tenantId
-output RESOURCE_GROUP_ID string = rg.id
+output RESOURCE_GROUP_ID string = resourceGroup().id
 
 // Service outputs
 output AZURE_OPENAI_ENDPOINT string = 'https://dgopenai2211200906498164.openai.azure.com/'
 output AZURE_SEARCH_ENDPOINT string = search.outputs.endpoint
-output DATABASE_URL string = 'postgresql://${database.outputs.administratorLogin}@${database.outputs.serverFqdn}:5432/${database.outputs.databaseName}?sslmode=require'
-output REDIS_URL string = 'rediss://${redis.outputs.redisHostName}:${redis.outputs.redisPort}/0'
+output DATABASE_URL string = 'postgresql://[secret]@${database.outputs.serverFqdn}:5432/${database.outputs.databaseName}?sslmode=require'
+output REDIS_URL string = 'rediss://[secret]@${redis.outputs.redisHostName}:${redis.outputs.redisPort}/0'
 output WEB_URI string = containerApp.outputs.containerAppUrl

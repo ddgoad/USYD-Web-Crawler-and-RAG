@@ -22,7 +22,9 @@ param tags object = {}
 resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   name: containerAppName
   location: location
-  tags: tags
+  tags: union(tags, {
+    'azd-service-name': 'web'
+  })
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {

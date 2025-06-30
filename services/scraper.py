@@ -7,15 +7,14 @@ import os
 import logging
 import json
 import uuid
+import sqlite3
 from datetime import datetime
 from typing import Dict, List, Optional
-import psycopg2
-from psycopg2.extras import RealDictCursor
 from celery import Celery
 import requests
 from urllib.parse import urljoin, urlparse
 import xml.etree.ElementTree as ET
-from crawl4ai import WebCrawler
+from crawl4ai import AsyncWebCrawler
 from crawl4ai.extraction_strategy import LLMExtractionStrategy
 import asyncio
 
@@ -30,26 +29,80 @@ celery = Celery(
 
 class ScrapingService:
     def __init__(self):
-        self.db_url = os.getenv("DATABASE_URL", "postgresql://localhost:5432/usydrag")
+        self.db_url = os.getenv("DATABASE_URL", "sqlite:///usydrag.db")
+        self.db_path = self.db_url.replace("sqlite:///", "")
         self.crawler = None
+        self._init_database()
     
     def _get_db_connection(self):
         """Get database connection"""
         try:
-            conn = psycopg2.connect(self.db_url)
-            return conn
+            if self.db_url.startswith("sqlite:"):
+                conn = sqlite3.connect(self.db_path)
+                conn.row_factory = sqlite3.Row
+                return conn
+            else:
+                # Keep PostgreSQL support for production
+                import psycopg2
+                from psycopg2.extras import RealDictCursor
+                conn = psycopg2.connect(self.db_url, cursor_factory=RealDictCursor)
+                return conn
         except Exception as e:
             logger.error(f"Database connection failed: {str(e)}")
             raise
     
+    def _init_database(self):
+        """Initialize database tables if they don't exist"""
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor()
+            
+            # Create scraping_jobs table
+            if self.db_url.startswith("sqlite:"):
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS scraping_jobs (
+                        id TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        url TEXT NOT NULL,
+                        scraping_type TEXT NOT NULL,
+                        status TEXT DEFAULT 'pending',
+                        config TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        completed_at TIMESTAMP,
+                        result_summary TEXT
+                    )
+                """)
+            else:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS scraping_jobs (
+                        id TEXT PRIMARY KEY,
+                        user_id INTEGER REFERENCES users(id),
+                        url VARCHAR(2048) NOT NULL,
+                        scraping_type VARCHAR(20) NOT NULL,
+                        status VARCHAR(20) DEFAULT 'pending',
+                        config JSONB,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        completed_at TIMESTAMP,
+                        result_summary JSONB
+                    )
+                """)
+            
+            conn.commit()
+            conn.close()
+            logger.info("Scraping database initialized successfully")
+        except Exception as e:
+            logger.error(f"Scraping database initialization failed: {str(e)}")
+            # Don't raise, as this shouldn't prevent the app from starting
+    
     async def _get_crawler(self):
-        """Get or create WebCrawler instance"""
+        """Get or create AsyncWebCrawler instance"""
         if not self.crawler:
-            self.crawler = WebCrawler(verbose=True)
+            self.crawler = AsyncWebCrawler(verbose=True)
             await self.crawler.astart()
         return self.crawler
     
-    def create_scraping_job(self, user_id: int, url: str, scraping_type: str, config: Dict) -> str:
+    def create_scraping_job(self, user_id, url: str, 
+                           scraping_type: str, config: Dict) -> str:
         """Create a new scraping job"""
         try:
             job_id = str(uuid.uuid4())
@@ -57,10 +110,16 @@ class ScrapingService:
             conn = self._get_db_connection()
             cursor = conn.cursor()
             
-            cursor.execute("""
-                INSERT INTO scraping_jobs (id, user_id, url, scraping_type, status, config)
-                VALUES (%s, %s, %s, %s, %s, %s);
-            """, (job_id, user_id, url, scraping_type, 'pending', json.dumps(config)))
+            if self.db_url.startswith("sqlite:"):
+                cursor.execute("""
+                    INSERT INTO scraping_jobs (id, user_id, url, scraping_type, status, config)
+                    VALUES (?, ?, ?, ?, ?, ?);
+                """, (job_id, user_id, url, scraping_type, 'pending', json.dumps(config)))
+            else:
+                cursor.execute("""
+                    INSERT INTO scraping_jobs (id, user_id, url, scraping_type, status, config)
+                    VALUES (%s, %s, %s, %s, %s, %s);
+                """, (job_id, user_id, url, scraping_type, 'pending', json.dumps(config)))
             
             conn.commit()
             cursor.close()
@@ -73,82 +132,137 @@ class ScrapingService:
             logger.error(f"Failed to create scraping job: {str(e)}")
             raise
     
-    def get_job_status(self, job_id: str, user_id: int) -> Optional[Dict]:
+    def get_job_status(self, job_id: str, user_id) -> Optional[Dict]:
         """Get scraping job status"""
         try:
             conn = self._get_db_connection()
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor = conn.cursor()
             
-            cursor.execute("""
-                SELECT * FROM scraping_jobs 
-                WHERE id = %s AND user_id = %s;
-            """, (job_id, user_id))
+            if self.db_url.startswith("sqlite:"):
+                cursor.execute("""
+                    SELECT * FROM scraping_jobs 
+                    WHERE id = ? AND user_id = ?;
+                """, (job_id, user_id))
+            else:
+                cursor.execute("""
+                    SELECT * FROM scraping_jobs 
+                    WHERE id = %s AND user_id = %s;
+                """, (job_id, user_id))
             
             job = cursor.fetchone()
             
             cursor.close()
             conn.close()
             
-            return dict(job) if job else None
+            if job:
+                if self.db_url.startswith("sqlite:"):
+                    return {
+                        'id': job[0],
+                        'user_id': job[1],
+                        'url': job[2],
+                        'scraping_type': job[3],
+                        'status': job[4],
+                        'config': job[5],
+                        'created_at': job[6],
+                        'completed_at': job[7],
+                        'result_summary': job[8]
+                    }
+                else:
+                    return dict(job)
+            return None
             
         except Exception as e:
             logger.error(f"Failed to get job status: {str(e)}")
             return None
     
-    def get_user_jobs(self, user_id: int) -> List[Dict]:
+    def get_user_jobs(self, user_id) -> List[Dict]:
         """Get all scraping jobs for a user"""
         try:
             conn = self._get_db_connection()
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor = conn.cursor()
             
-            cursor.execute("""
-                SELECT * FROM scraping_jobs 
-                WHERE user_id = %s 
-                ORDER BY created_at DESC;
-            """, (user_id,))
+            if self.db_url.startswith("sqlite:"):
+                cursor.execute("""
+                    SELECT * FROM scraping_jobs 
+                    WHERE user_id = ? 
+                    ORDER BY created_at DESC;
+                """, (user_id,))
+            else:
+                cursor.execute("""
+                    SELECT * FROM scraping_jobs 
+                    WHERE user_id = %s 
+                    ORDER BY created_at DESC;
+                """, (user_id,))
             
             jobs = cursor.fetchall()
             
             cursor.close()
             conn.close()
             
-            return [dict(job) for job in jobs]
+            if self.db_url.startswith("sqlite:"):
+                job_list = []
+                for job in jobs:
+                    job_dict = {
+                        'id': job[0],
+                        'user_id': job[1],
+                        'url': job[2],
+                        'scraping_type': job[3],
+                        'status': job[4],
+                        'config': job[5],
+                        'created_at': job[6],
+                        'completed_at': job[7],
+                        'result_summary': job[8]
+                    }
+                    job_list.append(job_dict)
+                return job_list
+            else:
+                return [dict(job) for job in jobs]
             
         except Exception as e:
             logger.error(f"Failed to get user jobs: {str(e)}")
             return []
     
-    def _update_job_status(self, job_id: str, status: str, progress: int = 0, message: str = "", result_summary: Dict = None):
+    def _update_job_status(self, job_id: str, status: str, progress: int = 0, 
+                          message: str = "", result_summary: Dict = None):
         """Update job status in database"""
         try:
             conn = self._get_db_connection()
             cursor = conn.cursor()
             
-            update_data = {
-                'status': status,
-                'progress': progress,
-                'message': message
-            }
-            
-            if result_summary:
-                update_data['result_summary'] = result_summary
-            
             if status in ['completed', 'failed']:
-                cursor.execute("""
-                    UPDATE scraping_jobs 
-                    SET status = %s, completed_at = CURRENT_TIMESTAMP, result_summary = %s
-                    WHERE id = %s;
-                """, (status, json.dumps(result_summary) if result_summary else None, job_id))
+                if self.db_url.startswith("sqlite:"):
+                    cursor.execute("""
+                        UPDATE scraping_jobs 
+                        SET status = ?, completed_at = datetime('now'), result_summary = ?
+                        WHERE id = ?;
+                    """, (status, json.dumps(result_summary) if result_summary else None, job_id))
+                else:
+                    cursor.execute("""
+                        UPDATE scraping_jobs 
+                        SET status = %s, completed_at = CURRENT_TIMESTAMP, result_summary = %s
+                        WHERE id = %s;
+                    """, (status, json.dumps(result_summary) if result_summary else None, job_id))
             else:
                 # Store progress in result_summary for running jobs
                 progress_data = result_summary or {}
-                progress_data.update(update_data)
+                progress_data.update({
+                    'status': status,
+                    'progress': progress,
+                    'message': message
+                })
                 
-                cursor.execute("""
-                    UPDATE scraping_jobs 
-                    SET status = %s, result_summary = %s
-                    WHERE id = %s;
-                """, (status, json.dumps(progress_data), job_id))
+                if self.db_url.startswith("sqlite:"):
+                    cursor.execute("""
+                        UPDATE scraping_jobs 
+                        SET status = ?, result_summary = ?
+                        WHERE id = ?;
+                    """, (status, json.dumps(progress_data), job_id))
+                else:
+                    cursor.execute("""
+                        UPDATE scraping_jobs 
+                        SET status = %s, result_summary = %s
+                        WHERE id = %s;
+                    """, (status, json.dumps(progress_data), job_id))
             
             conn.commit()
             cursor.close()
@@ -393,3 +507,100 @@ def run_scraping_job_sync(job_id: str):
 def process_scraping_job(self, job_id: str):
     """Celery task for processing scraping jobs"""
     return run_scraping_job_sync(job_id)
+
+    def process_scraping_job_sync(self, job_id: str):
+        """Process a scraping job synchronously for local development"""
+        async def process_job():
+            try:
+                # Get job details
+                conn = self._get_db_connection()
+                cursor = conn.cursor()
+                
+                if self.db_url.startswith("sqlite:"):
+                    cursor.execute("SELECT * FROM scraping_jobs WHERE id = ?", (job_id,))
+                else:
+                    cursor.execute("SELECT * FROM scraping_jobs WHERE id = %s", (job_id,))
+                
+                job = cursor.fetchone()
+                cursor.close()
+                conn.close()
+                
+                if not job:
+                    raise Exception(f"Job {job_id} not found")
+                
+                # Convert to dict
+                if self.db_url.startswith("sqlite:"):
+                    job_dict = {
+                        'id': job[0],
+                        'user_id': job[1],
+                        'url': job[2],
+                        'scraping_type': job[3],
+                        'status': job[4],
+                        'config': job[5] if job[5] else '{}',
+                        'created_at': job[6],
+                        'completed_at': job[7],
+                        'result_summary': job[8]
+                    }
+                else:
+                    job_dict = dict(job)
+                
+                # Update status to running
+                self._update_job_status(job_id, 'running', 10, 'Starting scraping process')
+                
+                # Parse config
+                try:
+                    config = json.loads(job_dict['config']) if job_dict['config'] else {}
+                except:
+                    config = {}
+                
+                # Run the appropriate scraping method
+                result = None
+                if job_dict['scraping_type'] == 'single':
+                    self._update_job_status(job_id, 'running', 30, 'Scraping single page')
+                    result = await self.scrape_single_page(job_dict['url'])
+                elif job_dict['scraping_type'] == 'deep':
+                    max_depth = config.get('max_depth', 3)
+                    max_pages = config.get('max_pages', 50)
+                    self._update_job_status(job_id, 'running', 30, 
+                                          f'Starting deep crawl (depth: {max_depth}, max pages: {max_pages})')
+                    result = await self.scrape_website_deep(job_dict['url'], max_depth, max_pages)
+                elif job_dict['scraping_type'] == 'sitemap':
+                    max_pages = config.get('max_pages', 100)
+                    self._update_job_status(job_id, 'running', 30, 
+                                          f'Starting sitemap crawl (max pages: {max_pages})')
+                    result = await self.scrape_from_sitemap(job_dict['url'], max_pages)
+                else:
+                    raise Exception(f"Unknown scraping type: {job_dict['scraping_type']}")
+                
+                if result and result.get('success'):
+                    self._update_job_status(job_id, 'running', 80, 'Saving scraped data')
+                    
+                    # Save scraped data to file
+                    data_dir = f"data/raw/{job_id}"
+                    os.makedirs(data_dir, exist_ok=True)
+                    
+                    with open(f"{data_dir}/scraped_data.json", 'w', encoding='utf-8') as f:
+                        json.dump(result, f, indent=2, ensure_ascii=False)
+                    
+                    # Create summary for database
+                    summary = {
+                        'pages_scraped': result.get('pages_scraped', 1),
+                        'success': True,
+                        'data_file': f"{data_dir}/scraped_data.json"
+                    }
+                    
+                    self._update_job_status(job_id, 'completed', 100, 
+                                          'Scraping completed successfully', summary)
+                    logger.info(f"Scraping job {job_id} completed successfully")
+                else:
+                    error_msg = result.get('error', 'Unknown error') if result else 'No result returned'
+                    self._update_job_status(job_id, 'failed', 0, f"Scraping failed: {error_msg}")
+                    logger.error(f"Scraping job {job_id} failed: {error_msg}")
+                
+            except Exception as e:
+                logger.error(f"Error processing scraping job {job_id}: {str(e)}")
+                self._update_job_status(job_id, 'failed', 0, f"Error: {str(e)}")
+                raise
+        
+        # Run the async function
+        return asyncio.run(process_job())

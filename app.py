@@ -58,7 +58,7 @@ llm_service = LLMService()
 @login_manager.user_loader
 def load_user(user_id):
     """Load user for Flask-Login"""
-    return auth_service.get_user_by_id(int(user_id))
+    return auth_service.get_user_by_id(user_id)
 
 # Routes
 @app.route("/")
@@ -142,16 +142,25 @@ def start_scraping():
             config=config
         )
         
-        # Start background task
-        from services.scraper import process_scraping_job
-        process_scraping_job.delay(job_id)
+        logger.info(f"Created scraping job {job_id} for user {current_user.username}")
         
-        logger.info(f"Started scraping job {job_id} for user {current_user.username}")
+        # For local development, start processing immediately in background thread
+        import threading
+        def process_job():
+            try:
+                scraping_service.process_scraping_job_sync(job_id)
+            except Exception as e:
+                logger.error(f"Error processing job {job_id}: {str(e)}")
+        
+        thread = threading.Thread(target=process_job)
+        thread.daemon = True
+        thread.start()
+        
         return jsonify({"job_id": job_id, "status": "started"})
         
     except Exception as e:
         logger.error(f"Error starting scraping job: {str(e)}")
-        return jsonify({"error": "Failed to start scraping job"}), 500
+        return jsonify({"error": f"Failed to start scraping job: {str(e)}"}), 500
 
 @app.route("/api/scrape/status/<job_id>")
 @login_required

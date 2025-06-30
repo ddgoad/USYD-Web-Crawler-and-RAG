@@ -5,8 +5,7 @@ Handles user authentication, session management, and user data operations
 
 import os
 import logging
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 from models.user import User
@@ -15,14 +14,23 @@ logger = logging.getLogger(__name__)
 
 class AuthService:
     def __init__(self):
-        self.db_url = os.getenv("DATABASE_URL", "postgresql://localhost:5432/usydrag")
+        self.db_url = os.getenv("DATABASE_URL", "sqlite:///usydrag.db")
+        self.db_path = self.db_url.replace("sqlite:///", "")
         self._init_database()
     
     def _get_db_connection(self):
         """Get database connection"""
         try:
-            conn = psycopg2.connect(self.db_url)
-            return conn
+            if self.db_url.startswith("sqlite:"):
+                conn = sqlite3.connect(self.db_path)
+                conn.row_factory = sqlite3.Row  # This makes rows behave like dictionaries
+                return conn
+            else:
+                # Keep PostgreSQL support for production
+                import psycopg2
+                from psycopg2.extras import RealDictCursor
+                conn = psycopg2.connect(self.db_url, cursor_factory=RealDictCursor)
+                return conn
         except Exception as e:
             logger.error(f"Database connection failed: {str(e)}")
             raise
@@ -32,6 +40,65 @@ class AuthService:
         try:
             conn = self._get_db_connection()
             cursor = conn.cursor()
+            
+            # Create users table for SQLite
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    is_active BOOLEAN DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_login TIMESTAMP,
+                    preferences TEXT DEFAULT '{}'
+                )
+            """)
+            
+            conn.commit()
+            
+            # Create default admin user if it doesn't exist
+            self._create_default_admin_user(conn)
+            
+            conn.close()
+            logger.info("Database initialized successfully")
+        except Exception as e:
+            logger.error(f"Database initialization failed: {str(e)}")
+            raise
+    
+    def _create_default_admin_user(self, conn):
+        """Create default admin user if it doesn't exist"""
+        try:
+            cursor = conn.cursor()
+            
+            # Check if admin user exists
+            if self.db_url.startswith("sqlite:"):
+                cursor.execute("SELECT id FROM users WHERE username = ?", ("admin",))
+            else:
+                cursor.execute("SELECT id FROM users WHERE username = %s", ("admin",))
+            
+            if not cursor.fetchone():
+                # Create admin user
+                admin_id = "admin-001"
+                admin_password_hash = generate_password_hash("admin123")
+                
+                if self.db_url.startswith("sqlite:"):
+                    cursor.execute("""
+                        INSERT INTO users (id, username, email, password_hash, is_active)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (admin_id, "admin", "admin@usyd.edu.au", admin_password_hash, True))
+                else:
+                    cursor.execute("""
+                        INSERT INTO users (id, username, email, password_hash, is_active)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (admin_id, "admin", "admin@usyd.edu.au", admin_password_hash, True))
+                
+                conn.commit()
+                logger.info("Default admin user created successfully")
+            
+        except Exception as e:
+            logger.error(f"Failed to create default admin user: {str(e)}")
+            # Don't raise, as this shouldn't prevent the app from starting
             
             # Create users table
             cursor.execute("""
@@ -124,36 +191,63 @@ class AuthService:
         """Authenticate user credentials"""
         try:
             conn = self._get_db_connection()
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor = conn.cursor()
             
-            cursor.execute("""
-                SELECT id, username, password_hash, created_at, last_login
-                FROM users 
-                WHERE username = %s;
-            """, (username,))
+            if self.db_url.startswith("sqlite:"):
+                cursor.execute("""
+                    SELECT id, username, password_hash, created_at, last_login
+                    FROM users 
+                    WHERE username = ?;
+                """, (username,))
+            else:
+                cursor.execute("""
+                    SELECT id, username, password_hash, created_at, last_login
+                    FROM users 
+                    WHERE username = %s;
+                """, (username,))
             
             user_data = cursor.fetchone()
             
-            if user_data and check_password_hash(user_data['password_hash'], password):
-                # Update last login
-                cursor.execute("""
-                    UPDATE users 
-                    SET last_login = CURRENT_TIMESTAMP 
-                    WHERE id = %s;
-                """, (user_data['id'],))
-                conn.commit()
+            if user_data:
+                # Convert to dict-like access
+                if self.db_url.startswith("sqlite:"):
+                    user_dict = {
+                        'id': user_data[0],
+                        'username': user_data[1], 
+                        'password_hash': user_data[2],
+                        'created_at': user_data[3],
+                        'last_login': user_data[4]
+                    }
+                else:
+                    user_dict = dict(user_data)
                 
-                user = User(
-                    id=user_data['id'],
-                    username=user_data['username'],
-                    password_hash=user_data['password_hash'],
-                    created_at=user_data['created_at'],
-                    last_login=datetime.utcnow()
-                )
-                
-                cursor.close()
-                conn.close()
-                return user
+                if check_password_hash(user_dict['password_hash'], password):
+                    # Update last login
+                    if self.db_url.startswith("sqlite:"):
+                        cursor.execute("""
+                            UPDATE users 
+                            SET last_login = datetime('now') 
+                            WHERE id = ?;
+                        """, (user_dict['id'],))
+                    else:
+                        cursor.execute("""
+                            UPDATE users 
+                            SET last_login = CURRENT_TIMESTAMP 
+                            WHERE id = %s;
+                        """, (user_dict['id'],))
+                    conn.commit()
+                    
+                    user = User(
+                        user_id=user_dict['id'],
+                        username=user_dict['username'],
+                        password_hash=user_dict['password_hash'],
+                        created_at=user_dict['created_at'],
+                        last_login=datetime.utcnow()
+                    )
+                    
+                    cursor.close()
+                    conn.close()
+                    return user
             
             cursor.close()
             conn.close()
@@ -163,27 +257,46 @@ class AuthService:
             logger.error(f"Authentication failed: {str(e)}")
             return None
     
-    def get_user_by_id(self, user_id: int) -> User:
+    def get_user_by_id(self, user_id) -> User:
         """Get user by ID for Flask-Login"""
         try:
             conn = self._get_db_connection()
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor = conn.cursor()
             
-            cursor.execute("""
-                SELECT id, username, password_hash, created_at, last_login
-                FROM users 
-                WHERE id = %s;
-            """, (user_id,))
+            if self.db_url.startswith("sqlite:"):
+                cursor.execute("""
+                    SELECT id, username, password_hash, created_at, last_login
+                    FROM users 
+                    WHERE id = ?;
+                """, (user_id,))
+            else:
+                cursor.execute("""
+                    SELECT id, username, password_hash, created_at, last_login
+                    FROM users 
+                    WHERE id = %s;
+                """, (user_id,))
             
             user_data = cursor.fetchone()
             
             if user_data:
+                # Convert to dict-like access
+                if self.db_url.startswith("sqlite:"):
+                    user_dict = {
+                        'id': user_data[0],
+                        'username': user_data[1], 
+                        'password_hash': user_data[2],
+                        'created_at': user_data[3],
+                        'last_login': user_data[4]
+                    }
+                else:
+                    user_dict = dict(user_data)
+                
                 user = User(
-                    id=user_data['id'],
-                    username=user_data['username'],
-                    password_hash=user_data['password_hash'],
-                    created_at=user_data['created_at'],
-                    last_login=user_data['last_login']
+                    user_id=user_dict['id'],
+                    username=user_dict['username'],
+                    password_hash=user_dict['password_hash'],
+                    created_at=user_dict['created_at'],
+                    last_login=user_dict['last_login']
                 )
                 
                 cursor.close()
@@ -206,10 +319,16 @@ class AuthService:
             
             password_hash = generate_password_hash(password)
             
-            cursor.execute("""
-                INSERT INTO users (username, password_hash)
-                VALUES (%s, %s);
-            """, (username, password_hash))
+            if self.db_url.startswith("sqlite:"):
+                cursor.execute("""
+                    INSERT INTO users (username, password_hash)
+                    VALUES (?, ?);
+                """, (username, password_hash))
+            else:
+                cursor.execute("""
+                    INSERT INTO users (username, password_hash)
+                    VALUES (%s, %s);
+                """, (username, password_hash))
             
             conn.commit()
             cursor.close()
@@ -218,56 +337,107 @@ class AuthService:
             logger.info(f"Created new user: {username}")
             return True
             
-        except psycopg2.IntegrityError:
-            logger.warning(f"Username already exists: {username}")
-            return False
         except Exception as e:
-            logger.error(f"User creation failed: {str(e)}")
+            logger.warning(f"User creation failed (username may already exist): {username} - {str(e)}")
             return False
     
-    def get_user_scraping_jobs(self, user_id: int) -> list:
+    def get_user_scraping_jobs(self, user_id) -> list:
         """Get scraping jobs for a user"""
         try:
             conn = self._get_db_connection()
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor = conn.cursor()
             
-            cursor.execute("""
-                SELECT id, url, scraping_type, status, config, created_at, completed_at, result_summary
-                FROM scraping_jobs 
-                WHERE user_id = %s
-                ORDER BY created_at DESC;
-            """, (user_id,))
+            if self.db_url.startswith("sqlite:"):
+                cursor.execute("""
+                    SELECT id, url, scraping_type, status, config, 
+                           created_at, completed_at, result_summary
+                    FROM scraping_jobs 
+                    WHERE user_id = ?
+                    ORDER BY created_at DESC;
+                """, (user_id,))
+            else:
+                cursor.execute("""
+                    SELECT id, url, scraping_type, status, config, 
+                           created_at, completed_at, result_summary
+                    FROM scraping_jobs 
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC;
+                """, (user_id,))
             
             jobs = cursor.fetchall()
             
             cursor.close()
             conn.close()
             
-            return [dict(job) for job in jobs]
+            # Convert to list of dicts
+            if self.db_url.startswith("sqlite:"):
+                job_list = []
+                for job in jobs:
+                    job_dict = {
+                        'id': job[0],
+                        'url': job[1],
+                        'scraping_type': job[2],
+                        'status': job[3],
+                        'config': job[4],
+                        'created_at': job[5],
+                        'completed_at': job[6],
+                        'result_summary': job[7]
+                    }
+                    job_list.append(job_dict)
+                return job_list
+            else:
+                return [dict(job) for job in jobs]
             
         except Exception as e:
             logger.error(f"Get user scraping jobs failed: {str(e)}")
             return []
     
-    def get_user_vector_databases(self, user_id: int) -> list:
+    def get_user_vector_databases(self, user_id) -> list:
         """Get vector databases for a user"""
         try:
             conn = self._get_db_connection()
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor = conn.cursor()
             
-            cursor.execute("""
-                SELECT id, name, source_url, azure_index_name, document_count, status, created_at, updated_at
-                FROM vector_databases 
-                WHERE user_id = %s
-                ORDER BY created_at DESC;
-            """, (user_id,))
+            if self.db_url.startswith("sqlite:"):
+                cursor.execute("""
+                    SELECT id, name, source_url, azure_index_name, 
+                           document_count, status, created_at, updated_at
+                    FROM vector_databases 
+                    WHERE user_id = ?
+                    ORDER BY created_at DESC;
+                """, (user_id,))
+            else:
+                cursor.execute("""
+                    SELECT id, name, source_url, azure_index_name, 
+                           document_count, status, created_at, updated_at
+                    FROM vector_databases 
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC;
+                """, (user_id,))
             
             databases = cursor.fetchall()
             
             cursor.close()
             conn.close()
             
-            return [dict(db) for db in databases]
+            # Convert to list of dicts
+            if self.db_url.startswith("sqlite:"):
+                db_list = []
+                for db in databases:
+                    db_dict = {
+                        'id': db[0],
+                        'name': db[1],
+                        'source_url': db[2],
+                        'azure_index_name': db[3],
+                        'document_count': db[4],
+                        'status': db[5],
+                        'created_at': db[6],
+                        'updated_at': db[7]
+                    }
+                    db_list.append(db_dict)
+                return db_list
+            else:
+                return [dict(db) for db in databases]
             
         except Exception as e:
             logger.error(f"Get user vector databases failed: {str(e)}")

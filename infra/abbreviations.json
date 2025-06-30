@@ -1,0 +1,12 @@
+{
+  "resourcesResourceGroups": "rg-",
+  "appManagedEnvironments": "cae-",
+  "appContainerApps": "ca-",
+  "dBforPostgreSQLServers": "psql-",
+  "cacheRedis": "redis-",
+  "cognitiveServicesAccounts": "cog-",
+  "searchSearchServices": "srch-",
+  "operationalInsightsWorkspaces": "log-",
+  "insightsComponents": "appi-",
+  "containerRegistryRegistries": "cr"
+}

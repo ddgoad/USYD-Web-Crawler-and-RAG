@@ -3,6 +3,13 @@ param name string
 param location string = resourceGroup().location
 param tags object = {}
 
+// User-assigned managed identity for container apps
+resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${name}-identity'
+  location: location
+  tags: tags
+}
+
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: '${name}-logs'
   location: location
@@ -40,6 +47,17 @@ resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-01-01-pr
   }
 }
 
+// Assign ACR pull role to user-assigned managed identity
+resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(containerRegistry.id, userAssignedIdentity.id, 'acrPull')
+  scope: containerRegistry
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d') // AcrPull role
+    principalId: userAssignedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2023-05-01' = {
   name: name
   location: location
@@ -62,3 +80,5 @@ output registryLoginServer string = containerRegistry.properties.loginServer
 output registryName string = containerRegistry.name
 output appInsightsConnectionString string = appInsights.properties.ConnectionString
 output logAnalyticsWorkspaceId string = logAnalytics.id
+output userAssignedIdentityId string = userAssignedIdentity.id
+output userAssignedIdentityClientId string = userAssignedIdentity.properties.clientId

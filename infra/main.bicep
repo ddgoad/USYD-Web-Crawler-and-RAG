@@ -20,7 +20,7 @@ param principalId string = ''
 param resourceGroupName string = ''
 
 var abbrs = loadJsonContent('./abbreviations.json')
-var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
+var resourceToken = toLower(uniqueString(subscription().id, environmentName))
 var tags = { 'azd-env-name': environmentName }
 
 // Organize resources in a resource group
@@ -97,14 +97,16 @@ module containerApp 'containerapp.bicep' = {
     containerAppName: '${abbrs.appContainerApps}${resourceToken}'
     location: location
     environmentId: containerAppsEnvironment.outputs.environmentId
-    imageName: 'usyd-web-crawler:latest'
+    imageName: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
     azureOpenAIEndpoint: openai.outputs.endpoint
     azureOpenAIKey: openai.outputs.apiKey
     azureSearchEndpoint: search.outputs.endpoint
     azureSearchKey: search.outputs.adminKey
-    databaseUrl: database.outputs.connectionString
-    redisUrl: redis.outputs.redisUrl
+    databaseUrl: 'postgresql://${database.outputs.administratorLogin}@${database.outputs.serverFqdn}:5432/${database.outputs.databaseName}?sslmode=require'
+    redisUrl: 'rediss://${redis.outputs.redisHostName}:${redis.outputs.redisPort}/0'
     secretKey: 'usyd-rag-secret-key-${resourceToken}'
+    userAssignedIdentityId: containerAppsEnvironment.outputs.userAssignedIdentityId
+    registryLoginServer: containerAppsEnvironment.outputs.registryLoginServer
     tags: tags
   }
 }
@@ -116,12 +118,13 @@ output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerAppsEnvironment.outpu
 output AZURE_CONTAINER_REGISTRY_NAME string = containerAppsEnvironment.outputs.registryName
 output AZURE_LOCATION string = location
 output AZURE_TENANT_ID string = tenant().tenantId
+output RESOURCE_GROUP_ID string = rg.id
 
 // Service outputs
 output AZURE_OPENAI_ENDPOINT string = openai.outputs.endpoint
 output AZURE_OPENAI_KEY string = openai.outputs.apiKey
 output AZURE_SEARCH_ENDPOINT string = search.outputs.endpoint
 output AZURE_SEARCH_KEY string = search.outputs.adminKey
-output DATABASE_URL string = database.outputs.connectionString
-output REDIS_URL string = redis.outputs.redisUrl
+output DATABASE_URL string = 'postgresql://${database.outputs.administratorLogin}@${database.outputs.serverFqdn}:5432/${database.outputs.databaseName}?sslmode=require'
+output REDIS_URL string = 'rediss://${redis.outputs.redisHostName}:${redis.outputs.redisPort}/0'
 output WEB_URI string = containerApp.outputs.containerAppUrl

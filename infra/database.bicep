@@ -28,9 +28,6 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2022-12-01' =
     highAvailability: {
       mode: 'Disabled'
     }
-    network: {
-      publicNetworkAccess: 'Enabled'
-    }
   }
 }
 
@@ -65,4 +62,5 @@ resource firewallRuleAll 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRule
 
 output serverName string = postgresServer.name
 output databaseName string = database.name
-output connectionString string = 'postgresql://${administratorLogin}:${administratorPassword}@${postgresServer.properties.fullyQualifiedDomainName}:5432/${database.name}?sslmode=require'
+output serverFqdn string = postgresServer.properties.fullyQualifiedDomainName
+output administratorLogin string = administratorLogin

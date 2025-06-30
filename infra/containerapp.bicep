@@ -15,20 +15,39 @@ param databaseUrl string
 param redisUrl string
 @secure()
 param secretKey string
+param userAssignedIdentityId string
+param registryLoginServer string
 param tags object = {}
 
 resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   name: containerAppName
   location: location
   tags: tags
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${userAssignedIdentityId}': {}
+    }
+  }
   properties: {
     managedEnvironmentId: environmentId
     configuration: {
       activeRevisionsMode: 'Single'
+      registries: [
+        {
+          server: registryLoginServer
+          identity: userAssignedIdentityId
+        }
+      ]
       ingress: {
         external: true
         targetPort: 5000
         allowInsecure: false
+        corsPolicy: {
+          allowedOrigins: ['*']
+          allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+          allowedHeaders: ['*']
+        }
         traffic: [
           {
             weight: 100

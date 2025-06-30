@@ -14,8 +14,8 @@ resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
       capacity: 0
     }
     redisConfiguration: {
-      maxmemory-reserved: '30'
-      maxfragmentationmemory-reserved: '30'
+      'maxmemory-reserved': '30'
+      'maxfragmentationmemory-reserved': '30'
     }
     enableNonSslPort: false
     redisVersion: '6'
@@ -23,6 +23,5 @@ resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
   }
 }
 
-output redisUrl string = 'rediss://:${redisCache.listKeys().primaryKey}@${redisCache.properties.hostName}:${redisCache.properties.sslPort}/0'
 output redisHostName string = redisCache.properties.hostName
-output redisPrimaryKey string = redisCache.listKeys().primaryKey
+output redisPort string = string(redisCache.properties.sslPort)

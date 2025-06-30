@@ -30,7 +30,7 @@ trafilatura==1.6.4
 feedparser==6.0.10
 html2text==2024.2.26
 scrapy-user-agents==0.1.1
-fake-useragent==1.4.0
+fake-useragent>=2.0.3
 
 # Additional crawl4ai dependencies
 litellm>=1.53.1

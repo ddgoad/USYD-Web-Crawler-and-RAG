@@ -19,7 +19,7 @@ crawl4ai==0.3.0
 # Supporting scraping libraries
 requests==2.31.0
 urllib3==2.0.7
-beautifulsoup4==4.12.2
+beautifulsoup4==4.12.3
 lxml==4.9.3
 scrapy==2.11.0
 selenium==4.15.2

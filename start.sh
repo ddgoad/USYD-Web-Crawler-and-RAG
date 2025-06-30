@@ -61,6 +61,13 @@ except ImportError as e:
     print('❌ OpenAI import failed:', e)
     sys.exit(1)
 
+try:
+    import gunicorn
+    print('✓ Gunicorn imported successfully')
+except ImportError as e:
+    print('❌ Gunicorn import failed:', e)
+    sys.exit(1)
+
 print('All critical dependencies verified successfully!')
 "
 
@@ -126,6 +133,16 @@ for var in optional_vars:
     print(f'  {status} {var}: {display_value}')
 "
 
-# Start the application
-echo "🎯 Starting Flask application..."
-exec python app.py
+# Start the application with Gunicorn
+echo "🎯 Starting application with Gunicorn..."
+echo "Using Gunicorn configuration: gunicorn.conf.py"
+echo "WSGI entry point: app:create_app()"
+
+# Check if gunicorn.conf.py exists
+if [ ! -f "gunicorn.conf.py" ]; then
+    echo "❌ gunicorn.conf.py not found!"
+    exit 1
+fi
+
+# Start with Gunicorn
+exec gunicorn -c gunicorn.conf.py "app:create_app()"

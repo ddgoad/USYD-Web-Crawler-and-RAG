@@ -75,121 +75,59 @@ class AuthService:
         try:
             cursor = conn.cursor()
             
-            # Check if admin user exists
+            # Check if the desired user exists
             if self.db_url.startswith("sqlite:"):
-                cursor.execute("SELECT id FROM users WHERE username = ?", ("admin",))
+                cursor.execute(
+                    "SELECT id FROM users WHERE username = ?",
+                    ("USYDScrapper",)
+                )
             else:
-                cursor.execute("SELECT id FROM users WHERE username = %s", ("admin",))
+                cursor.execute(
+                    "SELECT id FROM users WHERE username = %s",
+                    ("USYDScrapper",)
+                )
             
             if not cursor.fetchone():
-                # Create admin user
-                admin_id = "admin-001"
-                admin_password_hash = generate_password_hash("admin123")
+                # Create USYDScrapper user
+                admin_id = "usyd-scrapper-001"
+                admin_password_hash = generate_password_hash("USYDRocks!")
                 
                 if self.db_url.startswith("sqlite:"):
                     cursor.execute("""
-                        INSERT INTO users (id, username, email, password_hash, is_active)
+                        INSERT INTO users
+                        (id, username, email, password_hash, is_active)
                         VALUES (?, ?, ?, ?, ?)
-                    """, (admin_id, "admin", "admin@usyd.edu.au", admin_password_hash, True))
+                    """, (
+                        admin_id,
+                        "USYDScrapper",
+                        "usydscrapper@usyd.edu.au",
+                        admin_password_hash,
+                        True
+                    ))
                 else:
                     cursor.execute("""
-                        INSERT INTO users (id, username, email, password_hash, is_active)
+                        INSERT INTO users
+                        (id, username, email, password_hash, is_active)
                         VALUES (%s, %s, %s, %s, %s)
-                    """, (admin_id, "admin", "admin@usyd.edu.au", admin_password_hash, True))
+                    """, (
+                        admin_id,
+                        "USYDScrapper",
+                        "usydscrapper@usyd.edu.au",
+                        admin_password_hash,
+                        True
+                    ))
                 
                 conn.commit()
-                logger.info("Default admin user created successfully")
+                logger.info(
+                    "Default USYDScrapper user created successfully "
+                    "(username: USYDScrapper, password: USYDRocks!)"
+                )
+            else:
+                logger.info("USYDScrapper user already exists")
             
         except Exception as e:
             logger.error(f"Failed to create default admin user: {str(e)}")
             # Don't raise, as this shouldn't prevent the app from starting
-            
-            # Create users table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id SERIAL PRIMARY KEY,
-                    username VARCHAR(50) UNIQUE NOT NULL,
-                    password_hash VARCHAR(255) NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_login TIMESTAMP
-                );
-            """)
-            
-            # Create scraping_jobs table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS scraping_jobs (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER REFERENCES users(id),
-                    url VARCHAR(2048) NOT NULL,
-                    scraping_type VARCHAR(20) NOT NULL,
-                    status VARCHAR(20) DEFAULT 'pending',
-                    config JSONB,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    completed_at TIMESTAMP,
-                    result_summary JSONB
-                );
-            """)
-            
-            # Create vector_databases table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS vector_databases (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER REFERENCES users(id),
-                    name VARCHAR(100) NOT NULL,
-                    source_url VARCHAR(2048) NOT NULL,
-                    azure_index_name VARCHAR(100) NOT NULL,
-                    document_count INTEGER DEFAULT 0,
-                    status VARCHAR(20) DEFAULT 'building',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            
-            # Create chat_sessions table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS chat_sessions (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER REFERENCES users(id),
-                    vector_db_id INTEGER REFERENCES vector_databases(id),
-                    model_name VARCHAR(50) NOT NULL,
-                    config JSONB,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            
-            # Create chat_messages table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS chat_messages (
-                    id SERIAL PRIMARY KEY,
-                    session_id INTEGER REFERENCES chat_sessions(id),
-                    role VARCHAR(10) NOT NULL,
-                    content TEXT NOT NULL,
-                    metadata JSONB,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            
-            # Create a default user if none exists
-            cursor.execute("SELECT COUNT(*) FROM users;")
-            user_count = cursor.fetchone()[0]
-            
-            if user_count == 0:
-                default_password_hash = generate_password_hash("admin123")
-                cursor.execute("""
-                    INSERT INTO users (username, password_hash)
-                    VALUES (%s, %s);
-                """, ("admin", default_password_hash))
-                logger.info("Created default admin user (username: admin, password: admin123)")
-            
-            conn.commit()
-            cursor.close()
-            conn.close()
-            
-            logger.info("Database initialized successfully")
-            
-        except Exception as e:
-            logger.error(f"Database initialization failed: {str(e)}")
-            raise
     
     def authenticate_user(self, username: str, password: str) -> User:
         """Authenticate user credentials"""
@@ -200,13 +138,13 @@ class AuthService:
             if self.db_url.startswith("sqlite:"):
                 cursor.execute("""
                     SELECT id, username, password_hash, created_at, last_login
-                    FROM users 
+                    FROM users
                     WHERE username = ?;
                 """, (username,))
             else:
                 cursor.execute("""
                     SELECT id, username, password_hash, created_at, last_login
-                    FROM users 
+                    FROM users
                     WHERE username = %s;
                 """, (username,))
             
@@ -229,14 +167,14 @@ class AuthService:
                     # Update last login
                     if self.db_url.startswith("sqlite:"):
                         cursor.execute("""
-                            UPDATE users 
-                            SET last_login = datetime('now') 
+                            UPDATE users
+                            SET last_login = datetime('now')
                             WHERE id = ?;
                         """, (user_dict['id'],))
                     else:
                         cursor.execute("""
-                            UPDATE users 
-                            SET last_login = CURRENT_TIMESTAMP 
+                            UPDATE users
+                            SET last_login = CURRENT_TIMESTAMP
                             WHERE id = %s;
                         """, (user_dict['id'],))
                     conn.commit()
@@ -270,13 +208,13 @@ class AuthService:
             if self.db_url.startswith("sqlite:"):
                 cursor.execute("""
                     SELECT id, username, password_hash, created_at, last_login
-                    FROM users 
+                    FROM users
                     WHERE id = ?;
                 """, (user_id,))
             else:
                 cursor.execute("""
                     SELECT id, username, password_hash, created_at, last_login
-                    FROM users 
+                    FROM users
                     WHERE id = %s;
                 """, (user_id,))
             

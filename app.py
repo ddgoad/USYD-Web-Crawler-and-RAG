@@ -416,15 +416,20 @@ def internal_error(error):
     logger.error(f"Internal server error: {str(error)}")
     return render_template('error.html', error="Internal server error"), 500
 
+# Create logs directory if it doesn't exist
+try:
+    os.makedirs("logs", exist_ok=True)
+    logger.info("Logs directory created/verified successfully")
+except Exception as e:
+    logger.warning(f"Could not create logs directory: {e}")
+
+# WSGI entry point for production deployment
+def create_app():
+    """Application factory function for WSGI deployment"""
+    return app
+
 if __name__ == "__main__":
-    # Create logs directory if it doesn't exist
-    try:
-        os.makedirs("logs", exist_ok=True)
-        logger.info("Logs directory created/verified successfully")
-    except Exception as e:
-        logger.warning(f"Could not create logs directory: {e}")
-    
-    # Run the Flask app
+    # Development server (for local development only)
     port = int(os.getenv("PORT", 5000))
     debug = os.getenv("FLASK_ENV") == "development"
     
@@ -432,8 +437,10 @@ if __name__ == "__main__":
     logger.info(f"Debug mode: {debug}")
     logger.info(f"Environment: {os.getenv('FLASK_ENV', 'production')}")
     
-    try:
+    if debug:
+        logger.warning("Running in development mode - not suitable for production!")
         app.run(host="0.0.0.0", port=port, debug=debug)
-    except Exception as e:
-        logger.error(f"Failed to start Flask application: {e}")
-        raise
+    else:
+        logger.error("Production mode detected - use Gunicorn to start the application!")
+        logger.error("Example: gunicorn --bind 0.0.0.0:5000 app:app")
+        exit(1)

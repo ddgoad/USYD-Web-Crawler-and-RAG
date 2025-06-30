@@ -192,8 +192,9 @@ class VectorStoreService:
             cursor.close()
             conn.close()
             
-            # Process scraped data asynchronously
-            self._process_scraped_data_async(db_id, scraping_job_id)
+            # Process scraped data in background task
+            from services.vector_store import process_vector_database_creation
+            process_vector_database_creation.delay(db_id, scraping_job_id)
             
             logger.info(f"Created vector database {db_id} for user {user_id}")
             return db_id
@@ -459,3 +460,47 @@ class VectorStoreService:
         except Exception as e:
             logger.error(f"Failed to search in database {db_id}: {str(e)}")
             return []
+
+
+# Import celery after the class definition to avoid circular imports
+from celery import Celery
+
+# Initialize Celery for this module
+celery = Celery(
+    'vector_store',
+    broker=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+    backend=os.getenv("REDIS_URL", "redis://localhost:6379/0")
+)
+
+@celery.task(bind=True)
+def process_vector_database_creation(self, db_id: str, scraping_job_id: str):
+    """Celery task for processing vector database creation"""
+    try:
+        logger.info(f"Starting vector database processing for {db_id}")
+        
+        service = VectorStoreService()
+        service._process_scraped_data_async(db_id, scraping_job_id)
+        
+        logger.info(f"Vector database processing completed for {db_id}")
+        return {"status": "completed", "db_id": db_id}
+        
+    except Exception as e:
+        logger.error(f"Vector database processing failed for {db_id}: {str(e)}")
+        
+        # Update database status to error
+        try:
+            service = VectorStoreService()
+            conn = service._get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE vector_databases 
+                SET status = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s;
+            """, ('error', db_id))
+            conn.commit()
+            cursor.close()
+            conn.close()
+        except:
+            pass
+        
+        raise

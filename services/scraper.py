@@ -319,9 +319,9 @@ class ScrapingService:
                 'error': str(e)
             }
     
-    @celery.task(bind=True)
-    def process_scraping_job(self, job_id: str):
-        """Background task for processing scraping jobs"""
+def run_scraping_job_sync(job_id: str):
+    """Synchronous wrapper for the scraping job that can be called by Celery"""
+    async def process_job():
         try:
             # Get job details
             conn = psycopg2.connect(os.getenv("DATABASE_URL", "postgresql://localhost:5432/usydrag"))
@@ -338,31 +338,33 @@ class ScrapingService:
             if not job:
                 raise Exception(f"Job {job_id} not found")
             
-            # Update status to running
+            # Create service instance
             service = ScrapingService()
-            service._update_job_status(job_id, 'running', 0, 'Starting scraping process')
+            
+            # Update status to running
+            service._update_job_status(job_id, 'running', 10, 'Starting scraping process')
             
             # Run the appropriate scraping method
             config = job['config'] if job['config'] else {}
             
-            async def run_scraping():
-                if job['scraping_type'] == 'single':
-                    return await service.scrape_single_page(job['url'])
-                elif job['scraping_type'] == 'deep':
-                    max_depth = config.get('max_depth', 3)
-                    max_pages = config.get('max_pages', 50)
-                    return await service.scrape_website_deep(job['url'], max_depth, max_pages)
-                elif job['scraping_type'] == 'sitemap':
-                    max_pages = config.get('max_pages', 100)
-                    return await service.scrape_from_sitemap(job['url'], max_pages)
-                else:
-                    raise Exception(f"Unknown scraping type: {job['scraping_type']}")
-            
-            # Run the scraping
-            result = asyncio.run(run_scraping())
+            result = None
+            if job['scraping_type'] == 'single':
+                service._update_job_status(job_id, 'running', 30, 'Scraping single page')
+                result = await service.scrape_single_page(job['url'])
+            elif job['scraping_type'] == 'deep':
+                max_depth = config.get('max_depth', 3)
+                max_pages = config.get('max_pages', 50)
+                service._update_job_status(job_id, 'running', 30, f'Starting deep crawl (depth: {max_depth}, max pages: {max_pages})')
+                result = await service.scrape_website_deep(job['url'], max_depth, max_pages)
+            elif job['scraping_type'] == 'sitemap':
+                max_pages = config.get('max_pages', 100)
+                service._update_job_status(job_id, 'running', 30, f'Starting sitemap crawl (max pages: {max_pages})')
+                result = await service.scrape_from_sitemap(job['url'], max_pages)
+            else:
+                raise Exception(f"Unknown scraping type: {job['scraping_type']}")
             
             if result['success']:
-                service._update_job_status(job_id, 'completed', 100, 'Scraping completed successfully', result)
+                service._update_job_status(job_id, 'running', 80, 'Saving scraped data')
                 
                 # Save scraped data to file
                 data_dir = f"data/raw/{job_id}"
@@ -371,13 +373,23 @@ class ScrapingService:
                 with open(f"{data_dir}/scraped_data.json", 'w', encoding='utf-8') as f:
                     json.dump(result, f, indent=2, ensure_ascii=False)
                 
+                service._update_job_status(job_id, 'completed', 100, 'Scraping completed successfully', result)
                 logger.info(f"Scraping job {job_id} completed successfully")
             else:
-                service._update_job_status(job_id, 'failed', 0, f"Scraping failed: {result.get('error', 'Unknown error')}")
-                logger.error(f"Scraping job {job_id} failed: {result.get('error', 'Unknown error')}")
+                error_msg = result.get('error', 'Unknown error')
+                service._update_job_status(job_id, 'failed', 0, f"Scraping failed: {error_msg}")
+                logger.error(f"Scraping job {job_id} failed: {error_msg}")
             
         except Exception as e:
             logger.error(f"Error processing scraping job {job_id}: {str(e)}")
             service = ScrapingService()
             service._update_job_status(job_id, 'failed', 0, f"Error: {str(e)}")
             raise
+    
+    # Run the async function
+    return asyncio.run(process_job())
+
+@celery.task(bind=True)
+def process_scraping_job(self, job_id: str):
+    """Celery task for processing scraping jobs"""
+    return run_scraping_job_sync(job_id)

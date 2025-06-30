@@ -143,7 +143,8 @@ def start_scraping():
         )
         
         # Start background task
-        scraping_service.process_scraping_job.delay(job_id)
+        from services.scraper import process_scraping_job
+        process_scraping_job.delay(job_id)
         
         logger.info(f"Started scraping job {job_id} for user {current_user.username}")
         return jsonify({"job_id": job_id, "status": "started"})

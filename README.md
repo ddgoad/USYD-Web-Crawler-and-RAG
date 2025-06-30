@@ -53,6 +53,77 @@ The application follows a modern, scalable architecture deployed on Azure:
 
 ### Prerequisites
 
+**Required Tools:**
+- Python 3.9 or higher
+- pip package manager
+- Git
+- Docker (for containerization)
+
+**For Azure Deployment:**
+- Azure CLI
+- Azure Developer CLI (azd)
+- Active Azure subscription
+
+### Local Development Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/ddgoad/USYD-Web-Crawler-and-RAG.git
+   cd USYD-Web-Crawler-and-RAG
+   ```
+
+2. **Run the automated setup script**
+   ```bash
+   python setup_dev.py
+   ```
+
+3. **Configure environment variables**
+   ```bash
+   # Edit .env file with your actual configuration values
+   nano .env
+   ```
+
+4. **Initialize the database**
+   ```bash
+   python scripts/init_db.py
+   ```
+
+5. **Start the application**
+   ```bash
+   # Terminal 1: Start the Flask app
+   python app.py
+
+   # Terminal 2: Start the Celery worker (for background tasks)
+   python worker.py
+   ```
+
+6. **Open your browser**
+   Navigate to `http://localhost:5000`
+   
+   **Default credentials**: `admin` / `admin123`
+
+### Azure Deployment
+
+1. **Login to Azure**
+   ```bash
+   azd auth login
+   az login
+   ```
+
+2. **Deploy the infrastructure and application**
+   ```bash
+   azd up
+   ```
+
+3. **Validate the deployment**
+   ```bash
+   python scripts/validate_deployment.py
+   ```
+
+## 🚀 Quick Start
+
+### Prerequisites
+
 - **Azure Subscription** with sufficient credits
 - **Azure CLI** and **Azure Developer CLI (AZD)** installed
 - **Docker** for local development

@@ -98,7 +98,7 @@ flask-sqlalchemy==3.1.1
 # ==================== DATA PROCESSING & UTILITIES ====================
 # Data manipulation and utilities
 pandas==2.1.4
-numpy==1.24.4
+numpy==2.1.1
 scikit-learn==1.3.2
 python-dotenv==1.0.0
 
@@ -223,7 +223,7 @@ gradio==4.8.0
 
 # Data Processing and Analysis
 pandas==2.1.4
-numpy==1.24.4
+numpy==2.1.1
 scipy==1.11.4
 matplotlib==3.8.2
 seaborn==0.13.0

@@ -122,11 +122,11 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
             }
             {
               name: 'AZURE_OPENAI_GPT4O_DEPLOYMENT'
-              value: 'gpt-4o'
+              value: 'gpt-4o-mini'
             }
             {
-              name: 'AZURE_OPENAI_O1_MINI_DEPLOYMENT'
-              value: 'o1-mini'
+              name: 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT'
+              value: 'text-embedding-3-small'
             }
             {
               name: 'PORT'

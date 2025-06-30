@@ -99,9 +99,9 @@ module containerApp 'containerapp.bicep' = {
     environmentId: containerAppsEnvironment.outputs.environmentId
     imageName: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
     azureOpenAIEndpoint: openai.outputs.endpoint
-    azureOpenAIKey: openai.outputs.apiKey
+    azureOpenAIKey: ''
     azureSearchEndpoint: search.outputs.endpoint
-    azureSearchKey: search.outputs.adminKey
+    azureSearchKey: ''
     databaseUrl: 'postgresql://${database.outputs.administratorLogin}@${database.outputs.serverFqdn}:5432/${database.outputs.databaseName}?sslmode=require'
     redisUrl: 'rediss://${redis.outputs.redisHostName}:${redis.outputs.redisPort}/0'
     secretKey: 'usyd-rag-secret-key-${resourceToken}'
@@ -122,9 +122,7 @@ output RESOURCE_GROUP_ID string = rg.id
 
 // Service outputs
 output AZURE_OPENAI_ENDPOINT string = openai.outputs.endpoint
-output AZURE_OPENAI_KEY string = openai.outputs.apiKey
 output AZURE_SEARCH_ENDPOINT string = search.outputs.endpoint
-output AZURE_SEARCH_KEY string = search.outputs.adminKey
 output DATABASE_URL string = 'postgresql://${database.outputs.administratorLogin}@${database.outputs.serverFqdn}:5432/${database.outputs.databaseName}?sslmode=require'
 output REDIS_URL string = 'rediss://${redis.outputs.redisHostName}:${redis.outputs.redisPort}/0'
 output WEB_URI string = containerApp.outputs.containerAppUrl

@@ -21,39 +21,20 @@ resource openai 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
   }
 }
 
-// Deploy GPT-4o model
-resource gpt4oDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
+// Deploy GPT-4o-mini model (widely available)
+resource gpt4oMiniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
   parent: openai
-  name: 'gpt-4o'
+  name: 'gpt-4o-mini'
   properties: {
     model: {
       format: 'OpenAI'
-      name: 'gpt-4o'
-      version: '2024-05-13'
+      name: 'gpt-4o-mini'
+      version: '2024-07-18'
     }
     raiPolicyName: 'Microsoft.Default'
   }
   sku: {
-    name: 'Standard'
-    capacity: 10
-  }
-}
-
-// Deploy o1-mini model
-resource o1MiniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
-  parent: openai
-  name: 'o1-mini'
-  dependsOn: [gpt4oDeployment]
-  properties: {
-    model: {
-      format: 'OpenAI'
-      name: 'o1-mini'
-      version: '2024-09-12'
-    }
-    raiPolicyName: 'Microsoft.Default'
-  }
-  sku: {
-    name: 'Standard'
+    name: 'GlobalStandard'
     capacity: 10
   }
 }
@@ -62,7 +43,7 @@ resource o1MiniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023
 resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
   parent: openai
   name: 'text-embedding-3-small'
-  dependsOn: [o1MiniDeployment]
+  dependsOn: [gpt4oMiniDeployment]
   properties: {
     model: {
       format: 'OpenAI'
@@ -88,5 +69,4 @@ resource openaiRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-0
 }
 
 output endpoint string = openai.properties.endpoint
-output apiKey string = openai.listKeys().key1
 output name string = openai.name

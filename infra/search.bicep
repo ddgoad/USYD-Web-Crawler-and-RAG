@@ -41,5 +41,4 @@ resource searchRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-0
 }
 
 output endpoint string = 'https://${searchService.name}.search.windows.net'
-output adminKey string = searchService.listAdminKeys().primaryKey
 output name string = searchService.name

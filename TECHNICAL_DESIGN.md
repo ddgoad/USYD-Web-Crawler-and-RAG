@@ -1248,6 +1248,11 @@ param containerAppName string
 param location string = resourceGroup().location
 param environmentId string
 param imageName string
+param azureOpenAIKey string
+param azureSearchKey string
+param databaseUrl string
+param redisUrl string
+param secretKey string
 
 resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   name: containerAppName
@@ -1280,6 +1285,14 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
           name: 'database-url'
           value: databaseUrl
         }
+        {
+          name: 'redis-url'  
+          value: redisUrl
+        }
+        {
+          name: 'secret-key'
+          value: secretKey
+        }
       ]
     }
     template: {
@@ -1289,16 +1302,8 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
           name: 'usyd-web-crawler'
           env: [
             {
-              name: 'AZURE_OPENAI_ENDPOINT'
-              value: azureOpenAIEndpoint
-            }
-            {
               name: 'AZURE_OPENAI_KEY'
               secretRef: 'azure-openai-key'
-            }
-            {
-              name: 'AZURE_SEARCH_ENDPOINT'
-              value: azureSearchEndpoint
             }
             {
               name: 'AZURE_SEARCH_KEY'
@@ -1307,6 +1312,26 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
             {
               name: 'DATABASE_URL'
               secretRef: 'database-url'
+            }
+            {
+              name: 'REDIS_URL'
+              secretRef: 'redis-url'
+            }
+            {
+              name: 'FLASK_SECRET_KEY'
+              secretRef: 'secret-key'
+            }
+            {
+              name: 'AZURE_OPENAI_ENDPOINT'
+              value: 'https://${azureOpenAIServiceName}.openai.azure.com/'
+            }
+            {
+              name: 'AZURE_SEARCH_ENDPOINT'
+              value: 'https://${azureSearchServiceName}.search.windows.net'
+            }
+            {
+              name: 'FLASK_ENV'
+              value: 'production'
             }
           ]
           resources: {
@@ -1323,7 +1348,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
             name: 'http-rule'
             http: {
               metadata: {
-                concurrentRequests: '10'
+                concurrentRequests: '100'
               }
             }
           }
@@ -1331,7 +1356,12 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
       }
     }
   }
+  tags: {
+    'azd-service-name': 'web'
+  }
 }
+
+output containerAppUrl string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
 ```
 
 #### 2. PostgreSQL Database (`infra/database.bicep`)
@@ -1342,10 +1372,12 @@ param location string = resourceGroup().location
 param administratorLogin string
 @secure()
 param administratorPassword string
+param tags object = {}
 
 resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2022-12-01' = {
   name: serverName
   location: location
+  tags: tags
   sku: {
     name: 'Standard_B1ms'
     tier: 'Burstable'
@@ -1375,6 +1407,20 @@ resource database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2022-12-0
     collation: 'en_US.UTF8'
   }
 }
+
+// Allow Azure services to access the database
+resource firewallRule 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2022-12-01' = {
+  parent: postgresServer
+  name: 'AllowAzureServices'
+  properties: {
+    startIpAddress: '0.0.0.0'
+    endIpAddress: '0.0.0.0'
+  }
+}
+
+output databaseUrl string = 'postgresql://${administratorLogin}:${administratorPassword}@${postgresServer.properties.fullyQualifiedDomainName}:5432/usydrag?sslmode=require'
+output serverName string = postgresServer.name
+output databaseName string = database.name
 ```
 
 #### 3. Redis Cache (`infra/redis.bicep`)
@@ -1382,10 +1428,12 @@ resource database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2022-12-0
 @description('Azure Cache for Redis')
 param cacheName string
 param location string = resourceGroup().location
+param tags object = {}
 
 resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
   name: cacheName
   location: location
+  tags: tags
   properties: {
     sku: {
       name: 'Basic'
@@ -1400,24 +1448,333 @@ resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
     redisVersion: '6'
   }
 }
+
+output redisUrl string = 'rediss://:${redisCache.listKeys().primaryKey}@${redisCache.properties.hostName}:${redisCache.properties.sslPort}/0'
+output redisHostName string = redisCache.properties.hostName
+output redisPrimaryKey string = redisCache.listKeys().primaryKey
 ```
 
-### Deployment Steps
+#### 4. Azure OpenAI Service (`infra/openai.bicep`)
+```bicep
+@description('Azure OpenAI Service')
+param openaiServiceName string
+param location string = resourceGroup().location
+param tags object = {}
 
-#### 1. Initialize AZD Project
-```bash
-# Clone or initialize the project
-azd init --template azure-search-openai-demo
+resource openaiService 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
+  name: openaiServiceName
+  location: location
+  tags: tags
+  kind: 'OpenAI'
+  sku: {
+    name: 'S0'
+  }
+  properties: {
+    customSubDomainName: openaiServiceName
+    publicNetworkAccess: 'Enabled'
+  }
+}
 
-# Customize the template files as described above
-# Copy your application code to the src/ directory
+// Deploy GPT-4o model
+resource gpt4oDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
+  parent: openaiService
+  name: 'gpt-4o'
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: 'gpt-4o'
+      version: '2024-05-13'
+    }
+    scaleSettings: {
+      scaleType: 'Standard'
+      capacity: 10
+    }
+  }
+}
+
+// Deploy o1-mini model
+resource o1miniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
+  parent: openaiService
+  name: 'o1-mini'
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: 'o1-mini'
+      version: '2024-09-12'
+    }
+    scaleSettings: {
+      scaleType: 'Standard'
+      capacity: 10
+    }
+  }
+  dependsOn: [gpt4oDeployment]
+}
+
+// Deploy text embedding model
+resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
+  parent: openaiService
+  name: 'text-embedding-3-small'
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: 'text-embedding-3-small'
+      version: '1'
+    }
+    scaleSettings: {
+      scaleType: 'Standard'
+      capacity: 10
+    }
+  }
+  dependsOn: [o1miniDeployment]
+}
+
+output openaiEndpoint string = openaiService.properties.endpoint
+output openaiKey string = openaiService.listKeys().key1
+output openaiServiceName string = openaiService.name
 ```
 
-#### 2. Configure Environment Variables (`azure.yaml`)
+#### 5. Azure AI Search Service (`infra/search.bicep`)
+```bicep
+@description('Azure AI Search Service')
+param searchServiceName string
+param location string = resourceGroup().location
+param tags object = {}
+
+resource searchService 'Microsoft.Search/searchServices@2023-11-01' = {
+  name: searchServiceName
+  location: location
+  tags: tags
+  sku: {
+    name: 'basic'
+  }
+  properties: {
+    replicaCount: 1
+    partitionCount: 1
+    hostingMode: 'default'
+    publicNetworkAccess: 'enabled'
+    networkRuleSet: {
+      ipRules: []
+    }
+  }
+}
+
+output searchEndpoint string = 'https://${searchService.name}.search.windows.net'
+output searchKey string = searchService.listAdminKeys().primaryKey
+output searchServiceName string = searchService.name
+```
+
+#### 6. Container Apps Environment (`infra/container-apps-environment.bicep`)
+```bicep
+@description('Container Apps Environment')
+param environmentName string
+param location string = resourceGroup().location
+param logAnalyticsWorkspaceName string
+param tags object = {}
+
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
+  name: logAnalyticsWorkspaceName
+  location: location
+  tags: tags
+  properties: {
+    sku: {
+      name: 'PerGB2018'
+    }
+    retentionInDays: 30
+  }
+}
+
+resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2023-05-01' = {
+  name: environmentName
+  location: location
+  tags: tags
+  properties: {
+    appLogsConfiguration: {
+      destination: 'log-analytics'
+      logAnalyticsConfiguration: {
+        customerId: logAnalyticsWorkspace.properties.customerId
+        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
+      }
+    }
+  }
+}
+
+output environmentId string = containerAppsEnvironment.id
+output environmentName string = containerAppsEnvironment.name
+output logAnalyticsWorkspaceId string = logAnalyticsWorkspace.id
+```
+
+#### 7. Main Infrastructure Template (`infra/main.bicep`)
+```bicep
+targetScope = 'subscription'
+
+@description('Name of the resource group')
+@minLength(1)
+param resourceGroupName string
+
+@description('Location for all resources')
+param location string = 'australiaeast'
+
+@description('Environment name (e.g., dev, staging, prod)')
+param environmentName string = 'dev'
+
+@description('Unique suffix for resource names')
+param resourceToken string = uniqueString(subscription().id, resourceGroupName, location)
+
+@description('Database administrator login')
+param databaseAdminLogin string = 'usydadmin'
+
+@description('Database administrator password')
+@secure()
+param databaseAdminPassword string
+
+@description('Flask secret key')
+@secure()
+param flaskSecretKey string
+
+var tags = {
+  'azd-env-name': environmentName
+  'azd-project-name': 'usyd-web-crawler-rag'
+}
+
+// Create resource group
+resource resourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
+  name: resourceGroupName
+  location: location
+  tags: tags
+}
+
+// Deploy Log Analytics and Container Apps Environment
+module containerAppsEnvironment 'container-apps-environment.bicep' = {
+  name: 'container-apps-environment'
+  scope: resourceGroup
+  params: {
+    environmentName: 'cae-${resourceToken}'
+    location: location
+    logAnalyticsWorkspaceName: 'log-${resourceToken}'
+    tags: tags
+  }
+}
+
+// Deploy PostgreSQL Database
+module database 'database.bicep' = {
+  name: 'database'
+  scope: resourceGroup
+  params: {
+    serverName: 'psql-${resourceToken}'
+    location: location
+    administratorLogin: databaseAdminLogin
+    administratorPassword: databaseAdminPassword
+    tags: tags
+  }
+}
+
+// Deploy Redis Cache
+module redis 'redis.bicep' = {
+  name: 'redis'
+  scope: resourceGroup
+  params: {
+    cacheName: 'redis-${resourceToken}'
+    location: location
+    tags: tags
+  }
+}
+
+// Deploy Azure OpenAI Service
+module openai 'openai.bicep' = {
+  name: 'openai'
+  scope: resourceGroup
+  params: {
+    openaiServiceName: 'oai-${resourceToken}'
+    location: location
+    tags: tags
+  }
+}
+
+// Deploy Azure AI Search Service
+module search 'search.bicep' = {
+  name: 'search'
+  scope: resourceGroup
+  params: {
+    searchServiceName: 'srch-${resourceToken}'
+    location: location
+    tags: tags
+  }
+}
+
+// Deploy Container App
+module containerApp 'containerapp.bicep' = {
+  name: 'container-app'
+  scope: resourceGroup
+  params: {
+    containerAppName: 'ca-usyd-${resourceToken}'
+    location: location
+    environmentId: containerAppsEnvironment.outputs.environmentId
+    imageName: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest' // This will be updated during deployment
+    azureOpenAIKey: openai.outputs.openaiKey
+    azureSearchKey: search.outputs.searchKey
+    databaseUrl: database.outputs.databaseUrl
+    redisUrl: redis.outputs.redisUrl
+    secretKey: flaskSecretKey
+  }
+  dependsOn: [
+    containerAppsEnvironment
+    database
+    redis
+    openai
+    search
+  ]
+}
+
+// Outputs for the application
+output AZURE_LOCATION string = location
+output AZURE_RESOURCE_GROUP_NAME string = resourceGroup.name
+output AZURE_CONTAINER_APP_NAME string = containerApp.outputs.containerAppUrl
+output AZURE_OPENAI_ENDPOINT string = openai.outputs.openaiEndpoint
+output AZURE_OPENAI_SERVICE_NAME string = openai.outputs.openaiServiceName
+output AZURE_SEARCH_ENDPOINT string = search.outputs.searchEndpoint
+output AZURE_SEARCH_SERVICE_NAME string = search.outputs.searchServiceName
+output DATABASE_URL string = database.outputs.databaseUrl
+output REDIS_URL string = redis.outputs.redisUrl
+```
+
+#### 8. Main Parameters File (`infra/main.parameters.json`)
+```json
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "resourceGroupName": {
+      "value": "${AZURE_RESOURCE_GROUP_NAME}"
+    },
+    "location": {
+      "value": "${AZURE_LOCATION}"
+    },
+    "environmentName": {
+      "value": "${AZURE_ENV_NAME}"
+    },
+    "databaseAdminLogin": {
+      "value": "${DATABASE_ADMIN_LOGIN}"
+    },
+    "databaseAdminPassword": {
+      "value": "${DATABASE_ADMIN_PASSWORD}"
+    },
+    "flaskSecretKey": {
+      "value": "${FLASK_SECRET_KEY}"
+    }
+  }
+}
+```
+
+### Complete AZD Configuration Files
+
+#### 1. Azure.yaml Configuration
 ```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
 name: usyd-web-crawler-rag
 metadata:
   template: usyd-web-crawler-rag@0.0.1-beta
+
 services:
   web:
     project: ./src
@@ -1426,65 +1783,84 @@ services:
     docker:
       path: ./Dockerfile
       context: ./src
+
 hooks:
   predeploy:
     shell: sh
     run: |
-      echo "Installing dependencies..."
-      pip install -r requirements.txt
-      echo "Running database migrations..."
-      python manage.py migrate
+      echo "Setting up pre-deployment environment..."
+      # Ensure all environment variables are set
+      if [ -z "$DATABASE_ADMIN_PASSWORD" ]; then
+        echo "Generating database admin password..."
+        export DATABASE_ADMIN_PASSWORD=$(openssl rand -base64 32)
+      fi
+      if [ -z "$FLASK_SECRET_KEY" ]; then
+        echo "Generating Flask secret key..."
+        export FLASK_SECRET_KEY=$(openssl rand -base64 32)
+      fi
+      echo "Pre-deployment setup complete."
+      
   postdeploy:
     shell: sh
     run: |
-      echo "Creating search indexes..."
+      echo "Running post-deployment configuration..."
+      echo "Creating database tables..."
+      python scripts/init_db.py
+      echo "Setting up search indexes..."
       python scripts/setup_search_indexes.py
+      echo "Validating deployment..."
+      python scripts/validate_deployment.py
+      echo "Post-deployment configuration complete."
 ```
 
-#### 3. Environment Configuration (`.env`)
+#### 2. Environment Configuration Template (`.env.example`)
 ```bash
 # Azure Configuration
+AZURE_SUBSCRIPTION_ID=
 AZURE_LOCATION=australiaeast
-AZURE_RESOURCE_GROUP_NAME=rg-usyd-rag
-AZURE_SUBSCRIPTION_ID=your-subscription-id
+AZURE_RESOURCE_GROUP_NAME=rg-usyd-web-crawler-rag
+AZURE_ENV_NAME=usyd-rag-dev
+
+# Database Configuration
+DATABASE_ADMIN_LOGIN=usydadmin
+DATABASE_ADMIN_PASSWORD=
+DATABASE_URL=
+
+# Azure Services
+AZURE_OPENAI_ENDPOINT=
+AZURE_OPENAI_KEY=
+AZURE_OPENAI_SERVICE_NAME=
+AZURE_SEARCH_ENDPOINT=
+AZURE_SEARCH_KEY=
+AZURE_SEARCH_SERVICE_NAME=
+
+# Redis Configuration
+REDIS_URL=
 
 # Application Configuration
-AZURE_OPENAI_SERVICE_NAME=usyd-openai
-AZURE_SEARCH_SERVICE_NAME=usyd-search
-POSTGRES_SERVER_NAME=usyd-postgres
-REDIS_CACHE_NAME=usyd-redis
+FLASK_SECRET_KEY=
+FLASK_ENV=production
+FLASK_DEBUG=false
 
-# Security
-FLASK_SECRET_KEY=your-secret-key
-DB_ADMIN_PASSWORD=your-db-password
+# Web Scraping Configuration
+CRAWL4AI_USER_AGENT=USYD-Web-Crawler/1.0
+CRAWL4AI_DELAY=2
+CRAWL4AI_MAX_DEPTH=5
+CRAWL4AI_MAX_PAGES=1000
+
+# AI Configuration
+DEFAULT_MODEL=gpt-4o
+DEFAULT_TEMPERATURE=0.7
+DEFAULT_MAX_TOKENS=1000
+EMBEDDING_MODEL=text-embedding-3-small
+
+# Vector Database Configuration
+DEFAULT_CHUNK_SIZE=1000
+DEFAULT_CHUNK_OVERLAP=200
+DEFAULT_TOP_K=5
 ```
 
-#### 4. Deploy to Azure
-```bash
-# Login to Azure
-azd auth login
-
-# Set target subscription and location
-azd env set AZURE_SUBSCRIPTION_ID your-subscription-id
-azd env set AZURE_LOCATION australiaeast
-
-# Deploy infrastructure and application
-azd up
-```
-
-#### 5. Post-Deployment Configuration
-```bash
-# Create database tables
-azd exec --service web -- python scripts/init_db.py
-
-# Create initial search indexes
-azd exec --service web -- python scripts/setup_indexes.py
-
-# Verify deployment
-azd show
-```
-
-### Dockerfile
+#### 3. Complete Dockerfile
 ```dockerfile
 FROM python:3.11-slim
 
@@ -1495,13 +1871,17 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
+    curl \
+    wget \
+    unzip \
     chromium \
     chromium-driver \
     && rm -rf /var/lib/apt/lists/*
 
-# Set Chrome binary path for Selenium
+# Set Chrome binary path for Selenium and web scraping
 ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROME_DRIVER=/usr/bin/chromedriver
+ENV DISPLAY=:99
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
@@ -1510,321 +1890,600 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create non-root user
+# Create non-root user for security
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/data/temp
 
 # Expose port
 EXPOSE 5000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:5000/health || exit 1
+    CMD curl -f http://localhost:5000/api/health || exit 1
 
-# Start application
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "app:app"]
+# Start application with Gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120", "--keep-alive", "2", "--max-requests", "1000", "--max-requests-jitter", "100", "app:app"]
 ```
 
-### Environment Validation Script (`scripts/validate_deployment.py`)
+#### 4. Database Initialization Script (`scripts/init_db.py`)
 ```python
+#!/usr/bin/env python3
+"""
+Database initialization script for USYD Web Crawler and RAG application.
+This script creates all necessary database tables and initial data.
+"""
+
 import os
-import requests
 import sys
+import logging
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def create_database_tables():
+    """Create all database tables"""
+    
+    # Get database URL from environment
+    database_url = os.getenv('DATABASE_URL')
+    if not database_url:
+        logger.error("DATABASE_URL environment variable not set")
+        sys.exit(1)
+    
+    try:
+        # Create database engine
+        engine = create_engine(database_url)
+        
+        # SQL statements to create tables
+        create_tables_sql = """
+        -- Users table
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(50) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_login TIMESTAMP
+        );
+        
+        -- Scraping jobs table
+        CREATE TABLE IF NOT EXISTS scraping_jobs (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            url VARCHAR(2048) NOT NULL,
+            scraping_type VARCHAR(20) NOT NULL CHECK (scraping_type IN ('single', 'deep', 'sitemap')),
+            status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'completed', 'failed')),
+            config JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP,
+            result_summary JSONB,
+            error_message TEXT
+        );
+        
+        -- Vector databases table
+        CREATE TABLE IF NOT EXISTS vector_databases (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            name VARCHAR(100) NOT NULL,
+            source_url VARCHAR(2048) NOT NULL,
+            azure_index_name VARCHAR(100) NOT NULL UNIQUE,
+            document_count INTEGER DEFAULT 0,
+            status VARCHAR(20) DEFAULT 'building' CHECK (status IN ('building', 'ready', 'error')),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Chat sessions table
+        CREATE TABLE IF NOT EXISTS chat_sessions (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            vector_db_id INTEGER REFERENCES vector_databases(id) ON DELETE CASCADE,
+            model_name VARCHAR(50) NOT NULL,
+            config JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Chat messages table
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id SERIAL PRIMARY KEY,
+            session_id INTEGER REFERENCES chat_sessions(id) ON DELETE CASCADE,
+            role VARCHAR(10) NOT NULL CHECK (role IN ('user', 'assistant')),
+            content TEXT NOT NULL,
+            metadata JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Create indexes for better performance
+        CREATE INDEX IF NOT EXISTS idx_scraping_jobs_user_id ON scraping_jobs(user_id);
+        CREATE INDEX IF NOT EXISTS idx_scraping_jobs_status ON scraping_jobs(status);
+        CREATE INDEX IF NOT EXISTS idx_vector_databases_user_id ON vector_databases(user_id);
+        CREATE INDEX IF NOT EXISTS idx_vector_databases_status ON vector_databases(status);
+        CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions(user_id);
+        CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON chat_messages(session_id);
+        CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON chat_messages(created_at);
+        
+        -- Create trigger to update updated_at timestamp
+        CREATE OR REPLACE FUNCTION update_updated_at_column()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            NEW.updated_at = CURRENT_TIMESTAMP;
+            RETURN NEW;
+        END;
+        $$ language 'plpgsql';
+        
+        CREATE TRIGGER update_vector_databases_updated_at 
+            BEFORE UPDATE ON vector_databases 
+            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        """
+        
+        # Execute the SQL statements
+        with engine.connect() as connection:
+            # Split and execute each statement
+            statements = create_tables_sql.split(';')
+            for statement in statements:
+                statement = statement.strip()
+                if statement:
+                    connection.execute(text(statement))
+            
+            connection.commit()
+        
+        logger.info("Database tables created successfully")
+        
+        # Create default admin user if it doesn't exist
+        create_default_user(engine)
+        
+    except SQLAlchemyError as e:
+        logger.error(f"Database error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        sys.exit(1)
+
+def create_default_user(engine):
+    """Create a default admin user"""
+    try:
+        import bcrypt
+        
+        # Default credentials (change these in production)
+        default_username = os.getenv('DEFAULT_ADMIN_USERNAME', 'admin')
+        default_password = os.getenv('DEFAULT_ADMIN_PASSWORD', 'admin123')
+        
+        # Hash the password
+        password_hash = bcrypt.hashpw(default_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        with engine.connect() as connection:
+            # Check if user already exists
+            result = connection.execute(
+                text("SELECT id FROM users WHERE username = :username"),
+                {"username": default_username}
+            )
+            
+            if result.fetchone() is None:
+                # Create the default user
+                connection.execute(
+                    text("INSERT INTO users (username, password_hash) VALUES (:username, :password_hash)"),
+                    {"username": default_username, "password_hash": password_hash}
+                )
+                connection.commit()
+                logger.info(f"Default admin user '{default_username}' created")
+            else:
+                logger.info(f"Default admin user '{default_username}' already exists")
+                
+    except Exception as e:
+        logger.warning(f"Could not create default user: {e}")
+
+if __name__ == "__main__":
+    logger.info("Initializing database...")
+    create_database_tables()
+    logger.info("Database initialization complete")
+```
+
+#### 5. Search Index Setup Script (`scripts/setup_search_indexes.py`)
+```python
+#!/usr/bin/env python3
+"""
+Azure AI Search index setup script for USYD Web Crawler and RAG application.
+This script creates the necessary search indexes with proper schemas.
+"""
+
+import os
+import sys
+import logging
+from azure.search.documents.indexes import SearchIndexClient
+from azure.search.documents.indexes.models import (
+    SearchIndex, SearchField, SearchFieldDataType, SimpleField, 
+    SearchableField, VectorSearch, VectorSearchProfile,
+    HnswAlgorithmConfiguration, VectorSearchAlgorithmConfiguration
+)
+from azure.core.credentials import AzureKeyCredential
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def create_search_indexes():
+    """Create Azure AI Search indexes with proper vector configuration"""
+    
+    # Get Azure Search configuration from environment
+    search_endpoint = os.getenv('AZURE_SEARCH_ENDPOINT')
+    search_key = os.getenv('AZURE_SEARCH_KEY')
+    
+    if not search_endpoint or not search_key:
+        logger.error("Azure Search configuration not found in environment variables")
+        sys.exit(1)
+    
+    try:
+        # Create search index client
+        credential = AzureKeyCredential(search_key)
+        index_client = SearchIndexClient(endpoint=search_endpoint, credential=credential)
+        
+        # Define the search index schema
+        fields = [
+            SimpleField(name="id", type=SearchFieldDataType.String, key=True),
+            SearchableField(name="content", type=SearchFieldDataType.String, analyzer_name="en.microsoft"),
+            SearchableField(name="title", type=SearchFieldDataType.String, analyzer_name="en.microsoft"),
+            SimpleField(name="url", type=SearchFieldDataType.String, filterable=True),
+            SimpleField(name="source_type", type=SearchFieldDataType.String, filterable=True),
+            SimpleField(name="created_at", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
+            SimpleField(name="user_id", type=SearchFieldDataType.String, filterable=True),
+            SimpleField(name="vector_db_id", type=SearchFieldDataType.String, filterable=True),
+            SearchField(
+                name="content_vector",
+                type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
+                searchable=True,
+                vector_search_dimensions=1536,  # text-embedding-3-small dimension
+                vector_search_profile_name="default-vector-profile"
+            ),
+            SearchableField(name="metadata", type=SearchFieldDataType.String, analyzer_name="keyword")
+        ]
+        
+        # Configure vector search
+        vector_search = VectorSearch(
+            profiles=[
+                VectorSearchProfile(
+                    name="default-vector-profile",
+                    algorithm_configuration_name="default-hnsw-config"
+                )
+            ],
+            algorithms=[
+                HnswAlgorithmConfiguration(
+                    name="default-hnsw-config",
+                    parameters={
+                        "m": 4,
+                        "efConstruction": 400,
+                        "efSearch": 500,
+                        "metric": "cosine"
+                    }
+                )
+            ]
+        )
+        
+        # Create the base index for document storage
+        base_index = SearchIndex(
+            name="usyd-documents-base",
+            fields=fields,
+            vector_search=vector_search
+        )
+        
+        # Create or update the index
+        logger.info("Creating base search index...")
+        index_client.create_or_update_index(base_index)
+        logger.info("Base search index created successfully")
+        
+        # Test the index
+        test_search_index(index_client, "usyd-documents-base")
+        
+    except Exception as e:
+        logger.error(f"Error creating search indexes: {e}")
+        sys.exit(1)
+
+def test_search_index(index_client, index_name):
+    """Test the created search index"""
+    try:
+        # Get the index to verify it was created
+        index = index_client.get_index(index_name)
+        logger.info(f"Index '{index_name}' verified successfully")
+        logger.info(f"Index has {len(index.fields)} fields")
+        
+        # List all indexes
+        indexes = list(index_client.list_indexes())
+        logger.info(f"Total indexes in service: {len(indexes)}")
+        
+    except Exception as e:
+        logger.error(f"Error testing search index: {e}")
+
+if __name__ == "__main__":
+    logger.info("Setting up Azure AI Search indexes...")
+    create_search_indexes()
+    logger.info("Search index setup complete")
+```
+
+#### 6. Deployment Validation Script (Enhanced)
+```python
+#!/usr/bin/env python3
+"""
+Enhanced deployment validation script for USYD Web Crawler and RAG application.
+This script validates all Azure services and application components.
+"""
+
+import os
+import sys
+import logging
+import requests
+import time
 from azure.search.documents import SearchClient
+from azure.search.documents.indexes import SearchIndexClient
 from azure.core.credentials import AzureKeyCredential
 from openai import AzureOpenAI
+import psycopg2
+import redis
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 def validate_environment():
     """Validate all required services are accessible"""
+    logger.info("Starting deployment validation...")
+    
     errors = []
+    warnings = []
     
-    # Check Azure Search
-    try:
-        search_client = SearchClient(
-            endpoint=os.getenv("AZURE_SEARCH_ENDPOINT"),
-            index_name="test-index",
-            credential=AzureKeyCredential(os.getenv("AZURE_SEARCH_KEY"))
-        )
-        # Test connection
-        print("✓ Azure Search connection successful")
-    except Exception as e:
-        errors.append(f"Azure Search error: {e}")
+    # Validate environment variables
+    required_vars = [
+        'DATABASE_URL', 'REDIS_URL', 'AZURE_OPENAI_ENDPOINT', 
+        'AZURE_OPENAI_KEY', 'AZURE_SEARCH_ENDPOINT', 'AZURE_SEARCH_KEY'
+    ]
     
-    # Check Azure OpenAI
-    try:
-        openai_client = AzureOpenAI(
-            api_key=os.getenv("AZURE_OPENAI_KEY"),
-            api_version="2023-12-01-preview",
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
-        )
-        # Test with a simple completion
-        response = openai_client.completions.create(
-            model="gpt-35-turbo",
-            prompt="Hello",
-            max_tokens=5
-        )
-        print("✓ Azure OpenAI connection successful")
-    except Exception as e:
-        errors.append(f"Azure OpenAI error: {e}")
-    
-    # Check database connection
-    try:
-        import psycopg2
-        conn = psycopg2.connect(os.getenv("DATABASE_URL"))
-        conn.close()
-        print("✓ Database connection successful")
-    except Exception as e:
-        errors.append(f"Database error: {e}")
-    
-    # Check Redis
-    try:
-        import redis
-        r = redis.from_url(os.getenv("REDIS_URL"))
-        r.ping()
-        print("✓ Redis connection successful")
-    except Exception as e:
-        errors.append(f"Redis error: {e}")
+    for var in required_vars:
+        if not os.getenv(var):
+            errors.append(f"Missing required environment variable: {var}")
     
     if errors:
-        print("\n❌ Validation failed with errors:")
+        logger.error("Environment validation failed:")
         for error in errors:
-            print(f"  - {error}")
-        sys.exit(1)
-    else:
-        print("\n✅ All services validated successfully!")
+            logger.error(f"  - {error}")
+        return False
+    
+    # Test database connection
+    if not test_database_connection():
+        errors.append("Database connection failed")
+    
+    # Test Redis connection
+    if not test_redis_connection():
+        errors.append("Redis connection failed")
+    
+    # Test Azure OpenAI connection
+    if not test_azure_openai_connection():
+        errors.append("Azure OpenAI connection failed")
+    
+    # Test Azure Search connection
+    if not test_azure_search_connection():
+        errors.append("Azure Search connection failed")
+    
+    # Test application health endpoint
+    if not test_application_health():
+        warnings.append("Application health endpoint not accessible (may be normal during deployment)")
+    
+    # Report results
+    if errors:
+        logger.error("❌ Validation failed with errors:")
+        for error in errors:
+            logger.error(f"  - {error}")
+        return False
+    
+    if warnings:
+        logger.warning("⚠️  Validation completed with warnings:")
+        for warning in warnings:
+            logger.warning(f"  - {warning}")
+    
+    logger.info("✅ All critical services validated successfully!")
+    return True
+
+def test_database_connection():
+    """Test PostgreSQL database connection"""
+    try:
+        database_url = os.getenv('DATABASE_URL')
+        conn = psycopg2.connect(database_url)
+        
+        # Test basic query
+        cursor = conn.cursor()
+        cursor.execute("SELECT version();")
+        version = cursor.fetchone()
+        
+        cursor.close()
+        conn.close()
+        
+        logger.info("✓ Database connection successful")
+        logger.info(f"  Database version: {version[0]}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"✗ Database connection failed: {e}")
+        return False
+
+def test_redis_connection():
+    """Test Redis connection"""
+    try:
+        redis_url = os.getenv('REDIS_URL')
+        r = redis.from_url(redis_url)
+        
+        # Test basic operations
+        r.ping()
+        r.set('test_key', 'test_value', ex=10)
+        value = r.get('test_key')
+        r.delete('test_key')
+        
+        logger.info("✓ Redis connection successful")
+        logger.info(f"  Redis test operation completed")
+        return True
+        
+    except Exception as e:
+        logger.error(f"✗ Redis connection failed: {e}")
+        return False
+
+def test_azure_openai_connection():
+    """Test Azure OpenAI connection and models"""
+    try:
+        client = AzureOpenAI(
+            api_key=os.getenv("AZURE_OPENAI_KEY"),
+            api_version="2024-02-01",
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+        )
+        
+        # Test text embedding
+        response = client.embeddings.create(
+            model="text-embedding-3-small",
+            input="This is a test embedding"
+        )
+        
+        if response.data and len(response.data) > 0:
+            embedding_dim = len(response.data[0].embedding)
+            logger.info("✓ Azure OpenAI connection successful")
+            logger.info(f"  Embedding model working, dimension: {embedding_dim}")
+            
+            # Test GPT-4o model
+            try:
+                chat_response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{"role": "user", "content": "Hello, this is a test."}],
+                    max_tokens=10
+                )
+                logger.info("✓ GPT-4o model accessible")
+            except Exception as e:
+                logger.warning(f"⚠️  GPT-4o model test failed: {e}")
+            
+            # Test o1-mini model
+            try:
+                chat_response = client.chat.completions.create(
+                    model="o1-mini",
+                    messages=[{"role": "user", "content": "Hello, this is a test."}],
+                    max_tokens=10
+                )
+                logger.info("✓ o1-mini model accessible")
+            except Exception as e:
+                logger.warning(f"⚠️  o1-mini model test failed: {e}")
+            
+            return True
+        else:
+            logger.error("✗ Azure OpenAI embedding test failed - no data returned")
+            return False
+            
+    except Exception as e:
+        logger.error(f"✗ Azure OpenAI connection failed: {e}")
+        return False
+
+def test_azure_search_connection():
+    """Test Azure AI Search connection"""
+    try:
+        search_endpoint = os.getenv("AZURE_SEARCH_ENDPOINT")
+        search_key = os.getenv("AZURE_SEARCH_KEY")
+        
+        credential = AzureKeyCredential(search_key)
+        index_client = SearchIndexClient(endpoint=search_endpoint, credential=credential)
+        
+        # List indexes
+        indexes = list(index_client.list_indexes())
+        logger.info("✓ Azure Search connection successful")
+        logger.info(f"  Found {len(indexes)} search indexes")
+        
+        # Check for base index
+        base_index_exists = any(idx.name == "usyd-documents-base" for idx in indexes)
+        if base_index_exists:
+            logger.info("✓ Base search index found")
+        else:
+            logger.warning("⚠️  Base search index not found - may need to run setup script")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"✗ Azure Search connection failed: {e}")
+        return False
+
+def test_application_health():
+    """Test application health endpoint"""
+    try:
+        # Try to determine the application URL
+        app_url = os.getenv('AZURE_CONTAINER_APP_URL')
+        if not app_url:
+            # Try localhost for local testing
+            app_url = "http://localhost:5000"
+        
+        # Test health endpoint
+        health_url = f"{app_url}/api/health"
+        response = requests.get(health_url, timeout=10)
+        
+        if response.status_code == 200:
+            logger.info("✓ Application health endpoint accessible")
+            return True
+        else:
+            logger.warning(f"⚠️  Application health endpoint returned status {response.status_code}")
+            return False
+            
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"⚠️  Application health endpoint not accessible: {e}")
+        return False
+    except Exception as e:
+        logger.warning(f"⚠️  Application health test failed: {e}")
+        return False
 
 if __name__ == "__main__":
-    validate_environment()
+    success = validate_environment()
+    
+    if success:
+        logger.info("🎉 Deployment validation completed successfully!")
+        sys.exit(0)
+    else:
+        logger.error("💥 Deployment validation failed!")
+        sys.exit(1)
 ```
 
-## Infrastructure Requirements
+### AZD Deployment Instructions for Coder Agents
 
-### Azure Resources Required
-1. **Azure Container Apps Environment**
-2. **Azure Container Apps** (for the web application)
-3. **Azure AI Search** (vector database)
-4. **Azure OpenAI** (GPT-4o and o1-mini models)
-5. **Azure Database for PostgreSQL** (user data and metadata)
-6. **Azure Cache for Redis** (session storage and task queue)
-7. **Azure Application Insights** (monitoring and logging)
-8. **Azure Key Vault** (secrets management)
+When implementing the USYD Web Crawler and RAG application, coder agents must create all the above infrastructure files in addition to the application code. The deployment process follows these steps:
 
-### Resource Sizing Recommendations
-- **Container App**: 1-2 CPU cores, 2-4GB RAM (auto-scaling 1-10 instances)
-- **PostgreSQL**: Standard_B1ms (1 vCore, 2GB RAM, 32GB storage)
-- **Redis**: Basic C0 (250MB cache)
-- **AI Search**: Basic tier (3 search units, 2GB storage)
+1. **Create Infrastructure Directory Structure**:
+   ```
+   infra/
+   ├── main.bicep
+   ├── main.parameters.json
+   ├── containerapp.bicep
+   ├── database.bicep
+   ├── redis.bicep
+   ├── openai.bicep
+   ├── search.bicep
+   └── container-apps-environment.bicep
+   ```
 
-### Cost Estimation (Australia East, Monthly)
-- Container Apps: ~$50-200 (depending on usage)
-- PostgreSQL: ~$25
-- Redis: ~$15
-- AI Search: ~$250
-- OpenAI: ~$100-500 (usage-based)
-- **Total: $440-990/month**
+2. **Create Scripts Directory**:
+   ```
+   scripts/
+   ├── init_db.py
+   ├── setup_search_indexes.py
+   └── validate_deployment.py
+   ```
 
-## Implementation Approach and Development Strategy
+3. **Create Configuration Files**:
+   - `azure.yaml` - AZD configuration
+   - `Dockerfile` - Container configuration
+   - `.env.example` - Environment template
 
-### Development Phases and Build Strategy
+4. **Deploy Using AZD**:
+   ```bash
+   azd init
+   azd up
+   ```
 
-The USYD Web Crawler and RAG solution should be built using an iterative, component-driven approach that allows for incremental testing and validation at each stage. This strategy ensures that each component is thoroughly tested with real data before integration with other system components.
+The infrastructure files provide:
+- **Complete resource provisioning** for all Azure services
+- **Proper security configuration** with secrets management
+- **Scalable architecture** with auto-scaling capabilities
+- **Monitoring and logging** integration
+- **Database initialization** and setup scripts
+- **Service validation** and health checks
 
-#### **Phase 1: Foundation and Core Infrastructure (Weeks 1-2)**
-
-**Objective**: Establish the basic application structure, authentication, and database foundations.
-
-**Implementation Details**:
-The development begins with setting up the Flask application structure and implementing secure user authentication. The authentication system should be simple but robust, using session-based management with secure password hashing. The PostgreSQL database schema must be created with all necessary tables for users, scraping jobs, vector databases, chat sessions, and messages.
-
-During this phase, developers should create the basic Flask application with proper project structure, implement user registration and login functionality, set up database models using SQLAlchemy, create migration scripts for database schema management, implement basic session management and security measures, and establish logging and monitoring infrastructure.
-
-The authentication system should support secure password storage using bcrypt, session management with secure cookies, user isolation to ensure data privacy, and basic user management (registration, login, logout). Database design must include proper foreign key relationships, indexing for performance, JSON fields for flexible configuration storage, and timestamp tracking for all entities.
-
-#### **Phase 2: Web Scraping Engine Development (Weeks 3-4)**
-
-**Objective**: Build and test the core web scraping functionality using Crawl4AI.
-
-**Implementation Strategy**:
-The scraping engine is the heart of the application and must be built to handle diverse real-world websites reliably. Start with single-page scraping to establish the basic content extraction pipeline, then extend to deep crawling and sitemap-based scraping.
-
-Key development tasks include integrating Crawl4AI with proper configuration for JavaScript handling, implementing the three scraping modes (single, deep, sitemap), creating content processing pipelines for text extraction and cleaning, building progress tracking and status reporting systems, implementing rate limiting and respectful crawling behavior, adding comprehensive error handling and recovery mechanisms, and creating background job processing with Celery.
-
-The scraping engine must handle various content types including static HTML pages, JavaScript-heavy single-page applications, content with complex formatting and media, multilingual content with different encodings, and password-protected or authenticated content where appropriate.
-
-Content processing should include intelligent text extraction that removes navigation and boilerplate content, preservation of important metadata (titles, URLs, dates, authors), text cleaning and normalization, content chunking for optimal vector storage, and validation of extracted content quality.
-
-#### **Phase 3: Vector Database and Search Implementation (Weeks 5-6)**
-
-**Objective**: Integrate Azure AI Search and implement embedding generation and search capabilities.
-
-**Technical Implementation**:
-This phase focuses on connecting the processed content to Azure AI Search and implementing the three search modes (semantic, keyword, hybrid). The integration requires careful attention to embedding generation, index management, and search result quality.
-
-Development tasks include setting up Azure AI Search service and authentication, implementing embedding generation using Azure OpenAI, creating search index schemas with proper field definitions, building index management functions (create, delete, update), implementing the three search types with appropriate configurations, developing result ranking and relevance scoring, and creating comprehensive search testing with real queries.
-
-The vector database implementation must support dynamic index creation for each scraping job, efficient storage and retrieval of text chunks with metadata, semantic search using vector embeddings, keyword search with full-text capabilities, hybrid search combining both approaches for optimal results, and proper handling of large document collections.
-
-Search functionality should provide relevant result ranking based on query context, proper result pagination for large result sets, metadata preservation for source attribution, performance optimization for quick response times, and comprehensive error handling for search failures.
-
-#### **Phase 4: AI Integration and Chat Interface (Weeks 7-8)**
-
-**Objective**: Implement the RAG system with Azure OpenAI and create the interactive chat interface.
-
-**Implementation Focus**:
-This phase brings together the scraped content and AI capabilities to create the intelligent chat system. The implementation must ensure accurate, relevant, and properly sourced responses to user queries.
-
-Key development components include integrating Azure OpenAI services (GPT-4o and o1-mini models), implementing the RAG pipeline (query processing, content retrieval, response generation), creating the chat interface with real-time messaging, building conversation history and context management, implementing response formatting with source attribution, adding configuration options for temperature and other parameters, and creating comprehensive testing with real scenarios.
-
-The RAG implementation should include intelligent query processing to optimize search queries, context assembly that provides relevant information to the AI model, response generation with proper source attribution, conversation flow management for multi-turn dialogues, and quality assurance to ensure response accuracy and relevance.
-
-Chat interface development must provide real-time messaging with WebSocket support, proper message formatting and display, source link integration for citations, conversation history persistence, model and parameter selection options, and responsive design for various devices.
-
-#### **Phase 5: User Interface and Real-Time Features (Weeks 9-10)**
-
-**Objective**: Create the complete user interface with real-time updates and responsive design.
-
-**Frontend Development Strategy**:
-The user interface should be intuitive, responsive, and provide real-time feedback for all operations. Focus on user experience and ensure the interface works seamlessly across different browsers and devices.
-
-Implementation tasks include creating responsive HTML/CSS layouts, implementing JavaScript for dynamic interactions, building WebSocket integration for real-time updates, creating progress tracking and status displays, implementing form validation and error handling, adding accessibility features and keyboard navigation, and ensuring cross-browser compatibility.
-
-The scraping interface should provide clear options for different scraping modes, real-time progress tracking with detailed status information, error reporting and recovery suggestions, intuitive parameter configuration, and visual feedback for user actions.
-
-The chat interface must offer smooth messaging experience, proper message threading and history, source link integration, model and search configuration options, keyboard shortcuts for efficiency, and mobile-friendly touch interactions.
-
-#### **Phase 6: Integration Testing and Quality Assurance (Weeks 11-12)**
-
-**Objective**: Comprehensive testing with real websites and user scenarios.
-
-**Testing Strategy**:
-This phase focuses exclusively on testing with real data and genuine user workflows. No simulated or mock data should be used during this phase.
-
-Testing activities include end-to-end workflow testing with diverse real websites, performance testing under realistic load conditions, browser compatibility testing across multiple platforms, security testing including penetration testing, accessibility testing for compliance with standards, and user acceptance testing with actual users.
-
-Quality assurance must verify scraping accuracy across different website types, search relevance and accuracy with real queries, AI response quality and source attribution, user interface functionality across browsers and devices, performance under various load conditions, and security against common web vulnerabilities.
-
-### **Development Best Practices**
-
-#### **Code Quality and Standards**
-All code must follow Python PEP 8 style guidelines, include comprehensive documentation and comments, implement proper error handling and logging, use type hints for better code maintainability, and follow security best practices for web applications.
-
-#### **Testing Throughout Development**
-Each component should be tested immediately after implementation using real data, integration testing should occur continuously as components are combined, performance testing should be conducted regularly to identify bottlenecks, and security testing should be ongoing throughout development.
-
-#### **Documentation and Knowledge Management**
-Maintain detailed documentation of all implementation decisions, create comprehensive API documentation, document all configuration options and parameters, provide troubleshooting guides for common issues, and maintain deployment and operational procedures.
-
-### **Technology Integration Strategy**
-
-#### **Azure Services Integration**
-The application relies heavily on Azure services and must be designed for optimal integration. Implement proper authentication and authorization for all Azure services, use Azure Key Vault for secure credential management, configure appropriate service tiers for cost optimization, implement monitoring and alerting for service health, and design for high availability and disaster recovery.
-
-#### **Scalability Considerations**
-Design the application architecture for horizontal scaling, implement efficient caching strategies using Redis, optimize database queries and indexing, use background job processing for heavy operations, and implement proper load balancing for multiple instances.
-
-#### **Monitoring and Observability**
-Implement comprehensive logging throughout the application, set up performance monitoring and alerting, create health checks for all critical components, implement error tracking and reporting, and establish metrics for business and technical KPIs.
-
-This implementation approach ensures that the USYD Web Crawler and RAG solution is built systematically with proper testing and validation at each stage, resulting in a robust, scalable, and reliable application that meets all functional and non-functional requirements.
-
-## Development Guidelines and Project Structure
-
-### Recommended Code Organization
-```
-src/
-├── app.py                 # Flask application entry point
-├── config.py             # Configuration management
-├── models/               # Database models
-│   ├── __init__.py
-│   ├── user.py
-│   ├── scraping_job.py
-│   ├── vector_database.py
-│   ├── chat_session.py
-│   └── chat_message.py
-├── services/             # Business logic services
-│   ├── __init__.py
-│   ├── auth_service.py
-│   ├── scraping_service.py
-│   ├── vector_store_service.py
-│   ├── llm_service.py
-│   └── embedding_service.py
-├── api/                  # API endpoints
-│   ├── __init__.py
-│   ├── auth.py
-│   ├── scraping.py
-│   ├── vector_db.py
-│   └── chat.py
-├── static/               # Static assets
-│   ├── css/
-│   │   ├── style.css
-│   │   └── dashboard.css
-│   ├── js/
-│   │   ├── login.js
-│   │   ├── dashboard.js
-│   │   └── chat.js
-│   └── images/
-├── templates/            # HTML templates
-│   ├── base.html
-│   ├── login.html
-│   └── dashboard.html
-├── utils/                # Utility functions
-│   ├── __init__.py
-│   ├── validators.py
-│   ├── helpers.py
-│   └── text_processing.py
-├── tasks/                # Background tasks
-│   ├── __init__.py
-│   ├── scraping_tasks.py
-│   └── vector_tasks.py
-└── scripts/              # Setup and maintenance scripts
-    ├── init_db.py
-    ├── setup_indexes.py
-    └── validate_deployment.py
-```
-
-### Environment Setup for Development
-```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your Azure configuration
-
-# Initialize database
-python scripts/init_db.py
-
-# Run application in development mode
-flask run --debug
-```
-
-### Quality Assurance Checklist
-- [ ] All code follows PEP 8 style guidelines
-- [ ] Unit tests achieve >80% code coverage
-- [ ] Integration tests pass with real data
-- [ ] Browser testing completed across multiple browsers
-- [ ] Security scan passes (no high/critical vulnerabilities)
-- [ ] Performance testing meets requirements (100+ concurrent users)
-- [ ] Documentation is complete and up-to-date
-- [ ] Error handling is comprehensive with proper logging
-- [ ] All configuration is externalized and secure
-- [ ] Secrets are properly managed through Azure Key Vault
-- [ ] Real-world testing completed with diverse websites
-- [ ] AI response quality validated with actual scraped content
-- [ ] Accessibility standards compliance verified
-- [ ] Mobile responsiveness tested on actual devices
-
-### Development Environment Requirements
-- Python 3.9 or higher
-- Node.js 16+ (for development tools)
-- Docker (for local testing)
-- Azure CLI (for deployment)
-- Chrome/Chromium (for Selenium testing)
-- PostgreSQL 14+ (local or cloud instance)
-- Redis 6+ (local or cloud instance)
-
-This technical design document provides a comprehensive foundation for building the USYD Web Crawler and RAG solution. The autonomous coder agent should be able to implement this solution following the detailed specifications, architecture patterns, implementation strategy, and deployment guidance provided. The emphasis on real-world testing ensures the system will work reliably in production environments.
+All these files are **mandatory** for a successful deployment and must be created by the coder agent as part of the complete implementation.

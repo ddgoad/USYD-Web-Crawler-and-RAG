@@ -200,10 +200,8 @@ class AuthService:
                     conn.commit()
                     
                     user = User(
-                        id=user_dict['id'],
-                        username=user_dict['username'],
-                        created_at=user_dict['created_at'],
-                        last_login=datetime.utcnow()
+                        user_id=user_dict['id'],
+                        username=user_dict['username']
                     )
                     
                     cursor.close()
@@ -253,10 +251,8 @@ class AuthService:
                     user_dict = dict(user_data)
                 
                 user = User(
-                    id=user_dict['id'],
-                    username=user_dict['username'],
-                    created_at=user_dict['created_at'],
-                    last_login=user_dict['last_login']
+                    user_id=user_dict['id'],
+                    username=user_dict['username']
                 )
                 
                 cursor.close()

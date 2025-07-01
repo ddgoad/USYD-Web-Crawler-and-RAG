@@ -211,13 +211,17 @@ def start_scraping():
         import threading
         def process_job():
             try:
+                logger.info(f"[THREAD] Starting background thread for job {job_id}")
                 scraping_service.process_scraping_job_sync(job_id)
+                logger.info(f"[THREAD] Background thread completed for job {job_id}")
             except Exception as e:
-                logger.error(f"Error processing job {job_id}: {str(e)}")
+                logger.error(f"[THREAD] Error processing job {job_id}: {str(e)}", exc_info=True)
         
-        thread = threading.Thread(target=process_job)
+        logger.info(f"[FLASK] Creating background thread for job {job_id}")
+        thread = threading.Thread(target=process_job, name=f"scraper-{job_id}")
         thread.daemon = True
         thread.start()
+        logger.info(f"[FLASK] Background thread started for job {job_id}")
         
         return jsonify({"job_id": job_id, "status": "started"})
         

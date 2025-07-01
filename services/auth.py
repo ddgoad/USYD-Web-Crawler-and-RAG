@@ -43,11 +43,14 @@ class AuthService:
             conn = self._get_db_connection()
             cursor = conn.cursor()
             
+            # Drop existing users table to fix schema inconsistency
+            cursor.execute("DROP TABLE IF EXISTS users CASCADE")
+            
             # Create users table - handle both SQLite and PostgreSQL
             if self.db_url.startswith("sqlite:"):
                 cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS users (
-                        id TEXT PRIMARY KEY,
+                    CREATE TABLE users (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
                         username TEXT UNIQUE NOT NULL,
                         email TEXT UNIQUE NOT NULL,
                         password_hash TEXT NOT NULL,
@@ -60,8 +63,8 @@ class AuthService:
             else:
                 # PostgreSQL schema
                 cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS users (
-                        id TEXT PRIMARY KEY,
+                    CREATE TABLE users (
+                        id SERIAL PRIMARY KEY,
                         username TEXT UNIQUE NOT NULL,
                         email TEXT UNIQUE NOT NULL,
                         password_hash TEXT NOT NULL,
@@ -106,16 +109,14 @@ class AuthService:
             
             if not cursor.fetchone():
                 # Create USYDScrapper user
-                admin_id = "usyd-scrapper-001"
                 admin_password_hash = generate_password_hash("USYDRocks!")
                 
                 if self.db_url.startswith("sqlite:"):
                     cursor.execute("""
                         INSERT INTO users
-                        (id, username, email, password_hash, is_active)
-                        VALUES (?, ?, ?, ?, ?)
+                        (username, email, password_hash, is_active)
+                        VALUES (?, ?, ?, ?)
                     """, (
-                        admin_id,
                         "USYDScrapper",
                         "usydscrapper@usyd.edu.au",
                         admin_password_hash,
@@ -124,10 +125,9 @@ class AuthService:
                 else:
                     cursor.execute("""
                         INSERT INTO users
-                        (id, username, email, password_hash, is_active)
-                        VALUES (%s, %s, %s, %s, %s)
+                        (username, email, password_hash, is_active)
+                        VALUES (%s, %s, %s, %s)
                     """, (
-                        admin_id,
                         "USYDScrapper",
                         "usydscrapper@usyd.edu.au",
                         admin_password_hash,
@@ -172,7 +172,7 @@ class AuthService:
                 if self.db_url.startswith("sqlite:"):
                     user_dict = {
                         'id': user_data[0],
-                        'username': user_data[1], 
+                        'username': user_data[1],
                         'password_hash': user_data[2],
                         'created_at': user_data[3],
                         'last_login': user_data[4]
@@ -242,7 +242,7 @@ class AuthService:
                 if self.db_url.startswith("sqlite:"):
                     user_dict = {
                         'id': user_data[0],
-                        'username': user_data[1], 
+                        'username': user_data[1],
                         'password_hash': user_data[2],
                         'created_at': user_data[3],
                         'last_login': user_data[4]

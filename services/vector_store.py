@@ -52,6 +52,51 @@ class VectorStoreService:
         
         # Initialize tokenizer for text chunking
         self.tokenizer = tiktoken.get_encoding("cl100k_base")
+        
+        # Initialize database
+        self._init_database()
+    
+    def _init_database(self):
+        """Initialize database tables if they don't exist"""
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor()
+            
+            # Create vector_databases table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS vector_databases (
+                    id VARCHAR(36) PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                    name VARCHAR(255) NOT NULL,
+                    description TEXT,
+                    index_name VARCHAR(255) UNIQUE NOT NULL,
+                    scraping_job_id VARCHAR(36),
+                    document_count INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    status VARCHAR(20) DEFAULT 'pending'
+                );
+            """)
+            
+            # Create vector_documents table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS vector_documents (
+                    id VARCHAR(36) PRIMARY KEY,
+                    database_id VARCHAR(36) REFERENCES vector_databases(id) ON DELETE CASCADE,
+                    title VARCHAR(500),
+                    content TEXT NOT NULL,
+                    url VARCHAR(2048),
+                    metadata JSONB,
+                    chunk_index INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            
+            conn.commit()
+            conn.close()
+            logger.info("Vector store database initialized successfully")
+        except Exception as e:
+            logger.error(f"Vector store database initialization failed: {str(e)}")
+            # Don't raise, as this shouldn't prevent the app from starting
     
     def _get_db_connection(self):
         """Get database connection"""

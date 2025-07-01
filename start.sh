@@ -133,6 +133,46 @@ for var in optional_vars:
     print(f'  {status} {var}: {display_value}')
 "
 
+# Initialize database schema
+echo "🗄️ Initializing database schema..."
+python -c "
+import os
+import sys
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+try:
+    # Import and initialize database
+    from services.auth import AuthService
+    from services.scraper import ScrapingService
+    from services.vector_store import VectorStoreService
+    
+    logger.info('Initializing all database schemas...')
+    
+    # Initialize auth service (creates users table)
+    auth_service = AuthService()
+    logger.info('✓ Auth service initialized')
+    
+    # Initialize scraper service (creates scraping_jobs table)
+    scraper_service = ScrapingService()
+    logger.info('✓ Scraper service initialized')
+    
+    # Initialize vector store service (creates vector_databases table)
+    vector_service = VectorStoreService()
+    logger.info('✓ Vector store service initialized')
+    
+    logger.info('✓ All database schemas initialized successfully')
+    
+except Exception as e:
+    logger.error(f'❌ Database initialization failed: {e}')
+    import traceback
+    traceback.print_exc()
+    # Don't exit - let the app try to start anyway
+"
+
 # Start the application with Gunicorn
 echo "🎯 Starting application with Gunicorn..."
 echo "Using Gunicorn configuration: gunicorn.conf.py"

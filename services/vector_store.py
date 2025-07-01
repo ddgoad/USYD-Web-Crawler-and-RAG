@@ -28,14 +28,13 @@ from azure.core.credentials import AzureKeyCredential
 from openai import AzureOpenAI
 import tiktoken
 
-# Import Celery for background tasks
+# Import Celery for background tasks (future enhancement)
 try:
     from celery import Celery
-    from worker import celery_app
     CELERY_AVAILABLE = True
 except ImportError:
     logger = logging.getLogger(__name__)
-    logger.warning("Celery not available, falling back to threading")
+    logger.warning("Celery not available, using threading for async processing")
     CELERY_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
@@ -313,20 +312,9 @@ class VectorStoreService:
 
     def _start_vector_processing_background(self, db_id: str, 
                                           scraping_job_id: str):
-        """Start vector database processing using Celery or background thread"""
-        if CELERY_AVAILABLE:
-            # Use Celery for proper async processing
-            try:
-                task = create_vector_database_async_task.delay(db_id, scraping_job_id)
-                logger.info(f"Started Celery task {task.id} for vector DB {db_id}")
-                return task.id
-            except Exception as e:
-                logger.error(f"Failed to start Celery task: {e}")
-                # Fall back to threading
-                self._start_processing_with_threading(db_id, scraping_job_id)
-        else:
-            # Fall back to threading when Celery is not available
-            self._start_processing_with_threading(db_id, scraping_job_id)
+        """Start vector database processing using background thread (simplified approach)"""
+        # Use threading approach which is more reliable and simpler
+        self._start_processing_with_threading(db_id, scraping_job_id)
             
     def _start_processing_with_threading(self, db_id: str, scraping_job_id: str):
         """Fallback method using threading when Celery is not available"""
@@ -683,48 +671,4 @@ class VectorStoreService:
         except Exception as e:
             logger.error(f"Failed to get database status for {db_id}: {str(e)}")
             return None
-
-
-# Celery task for asynchronous vector database creation
-if CELERY_AVAILABLE:
-    @celery_app.task(bind=True)
-    def create_vector_database_async_task(self, db_id: str, scraping_job_id: str):
-        """Celery task for asynchronous vector database creation"""
-        try:
-            # Create a new instance of VectorStoreService for the task
-            service = VectorStoreService()
-            
-            # Update task status to STARTED
-            self.update_state(state='STARTED', meta={'progress': 0, 'status': 'Processing scraped data'})
-            
-            # Process scraped data and add to vector database
-            service._process_scraped_data_async(db_id, scraping_job_id)
-            
-            # Update task status to SUCCESS
-            self.update_state(state='SUCCESS', meta={'progress': 100, 'status': 'Vector database ready'})
-            
-            return {'progress': 100, 'status': 'Vector database ready'}
-            
-        except Exception as e:
-            logger.error(f"Error in vector database creation task: {str(e)}", exc_info=True)
-            
-            # Update vector database status to error in database
-            try:
-                service = VectorStoreService()
-                conn = service._get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute("""
-                    UPDATE vector_databases 
-                    SET status = %s
-                    WHERE id = %s;
-                """, ('error', db_id))
-                conn.commit()
-                cursor.close()
-                conn.close()
-            except Exception as db_error:
-                logger.error(f"Failed to update vector DB status to error: {db_error}")
-            
-            # Update task status to FAILURE
-            self.update_state(state='FAILURE', meta={'progress': 0, 'status': f'Error: {str(e)}'})
-            raise
 

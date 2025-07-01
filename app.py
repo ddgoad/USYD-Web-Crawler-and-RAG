@@ -22,14 +22,32 @@ from services.llm_service import LLMService
 from models.user import User
 
 # Configure logging
+import sys
+
+# Force stdout to be unbuffered
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler()  # Start with console logging only
-    ]
+        logging.StreamHandler(sys.stdout)  # Use stdout with forced flush
+    ],
+    force=True
 )
 logger = logging.getLogger(__name__)
+
+
+def flush_print(*args, **kwargs):
+    """Print with immediate flush to ensure output appears in logs"""
+    print(*args, **kwargs)
+    sys.stdout.flush()
+
+
+# Test that logging is working immediately
+flush_print("=== APP STARTING: LOGGING TEST ===")
+logger.info("Logger test: USYD Web Crawler application starting...")
 
 # Create logs directory and add file handler after ensuring directory exists
 try:
@@ -206,22 +224,28 @@ def start_scraping():
         )
         
         logger.info(f"Created scraping job {job_id} for user {current_user.username}")
+        flush_print(f"=== CREATED SCRAPING JOB {job_id} ===")
         
         # For local development, start processing immediately in background thread
         import threading
         def process_job():
             try:
+                flush_print(f"=== [THREAD] Starting background thread for job {job_id} ===")
                 logger.info(f"[THREAD] Starting background thread for job {job_id}")
                 scraping_service.process_scraping_job_sync(job_id)
                 logger.info(f"[THREAD] Background thread completed for job {job_id}")
+                flush_print(f"=== [THREAD] Background thread completed for job {job_id} ===")
             except Exception as e:
+                flush_print(f"=== [THREAD] ERROR processing job {job_id}: {str(e)} ===")
                 logger.error(f"[THREAD] Error processing job {job_id}: {str(e)}", exc_info=True)
         
+        flush_print(f"=== [FLASK] Creating background thread for job {job_id} ===")
         logger.info(f"[FLASK] Creating background thread for job {job_id}")
         thread = threading.Thread(target=process_job, name=f"scraper-{job_id}")
         thread.daemon = True
         thread.start()
         logger.info(f"[FLASK] Background thread started for job {job_id}")
+        flush_print(f"=== [FLASK] Background thread started for job {job_id} ===")
         
         return jsonify({"job_id": job_id, "status": "started"})
         

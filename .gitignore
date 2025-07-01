@@ -183,13 +183,12 @@ data/embeddings/*
 logs/*.log
 *.log
 
-# Model files and caches
-models/
-*.bin
-*.safetensors
-*.onnx
-*.pt
-*.pth
+# Model files and caches (but allow source code models directory)
+models/*.bin
+models/*.safetensors
+models/*.onnx
+models/*.pt
+models/*.pth
 
 # Temporary files
 tmp/

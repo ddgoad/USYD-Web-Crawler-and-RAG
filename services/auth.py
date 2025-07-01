@@ -359,16 +359,16 @@ class AuthService:
             
             if self.db_url.startswith("sqlite:"):
                 cursor.execute("""
-                    SELECT id, name, source_url, azure_index_name, 
-                           document_count, status, created_at, updated_at
+                    SELECT id, name, source_url, index_name,
+                           document_count, status, created_at
                     FROM vector_databases 
                     WHERE user_id = ?
                     ORDER BY created_at DESC;
                 """, (user_id,))
             else:
                 cursor.execute("""
-                    SELECT id, name, source_url, azure_index_name, 
-                           document_count, status, created_at, updated_at
+                    SELECT id, name, source_url, index_name,
+                           document_count, status, created_at
                     FROM vector_databases 
                     WHERE user_id = %s
                     ORDER BY created_at DESC;
@@ -387,11 +387,10 @@ class AuthService:
                         'id': db[0],
                         'name': db[1],
                         'source_url': db[2],
-                        'azure_index_name': db[3],
+                        'index_name': db[3],
                         'document_count': db[4],
                         'status': db[5],
-                        'created_at': db[6],
-                        'updated_at': db[7]
+                        'created_at': db[6]
                     }
                     db_list.append(db_dict)
                 return db_list

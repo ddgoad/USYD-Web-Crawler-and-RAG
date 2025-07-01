@@ -73,6 +73,7 @@ class VectorStoreService:
                     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                     name VARCHAR(255) NOT NULL,
                     description TEXT,
+                    source_url VARCHAR(2048),
                     index_name VARCHAR(255) UNIQUE NOT NULL,
                     scraping_job_id VARCHAR(36),
                     document_count INTEGER DEFAULT 0,

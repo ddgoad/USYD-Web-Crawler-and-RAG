@@ -303,18 +303,23 @@ def create_vector_database():
         if not name or not scraping_job_id:
             return jsonify({"error": "Name and scraping job ID are required"}), 400
         
-        db_id = vector_service.create_database(
+        # Create database record and start processing in background
+        db_id = vector_service.create_database_async(
             user_id=current_user.id,
             name=name,
             scraping_job_id=scraping_job_id
         )
         
-        logger.info(f"Created vector database {db_id} for user {current_user.username}")
-        return jsonify({"db_id": db_id, "status": "created"})
+        logger.info(f"Created vector database {db_id} for user "
+                    f"{current_user.username}")
+        return jsonify({"db_id": db_id, "status": "building"})
         
     except Exception as e:
-        logger.error(f"Error creating vector database: {str(e)}")
-        return jsonify({"error": "Failed to create vector database"}), 500
+        logger.error(f"Error creating vector database: {str(e)}",
+                     exc_info=True)
+        return jsonify({"error": f"Failed to create vector database: "
+                        f"{str(e)}"}), 500
+
 
 @app.route("/api/vector-dbs/<db_id>", methods=["DELETE"])
 @login_required

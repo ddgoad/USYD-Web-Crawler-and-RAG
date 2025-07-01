@@ -78,6 +78,7 @@ class VectorStoreService:
                     scraping_job_id VARCHAR(36),
                     document_count INTEGER DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     status VARCHAR(20) DEFAULT 'pending'
                 );
             """)
@@ -210,7 +211,7 @@ class VectorStoreService:
             return False
     
     def create_database(self, user_id: int, name: str, scraping_job_id: str) -> str:
-        """Create vector database from scraping job"""
+        """Create vector database from scraping job (synchronous)"""
         try:
             db_id = str(uuid.uuid4())
             
@@ -252,6 +253,86 @@ class VectorStoreService:
         except Exception as e:
             logger.error(f"Failed to create vector database: {str(e)}")
             raise
+
+    def create_database_async(self, user_id: int, name: str, 
+                             scraping_job_id: str) -> str:
+        """Create vector database from scraping job (async processing)"""
+        try:
+            db_id = str(uuid.uuid4())
+            
+            # Get scraping job data
+            conn = self._get_db_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            
+            cursor.execute("""
+                SELECT * FROM scraping_jobs
+                WHERE id = %s AND user_id = %s AND status = 'completed';
+            """, (scraping_job_id, user_id))
+            
+            job = cursor.fetchone()
+            if not job:
+                raise Exception("Scraping job not found or not completed")
+            
+            # Create Azure Search index
+            azure_index_name = f"usyd-rag-{db_id}"
+            if not self._create_search_index(azure_index_name):
+                raise Exception("Failed to create search index")
+            
+            # Create vector database record
+            cursor.execute("""
+                INSERT INTO vector_databases
+                (id, user_id, name, source_url, index_name, status)
+                VALUES (%s, %s, %s, %s, %s, %s);
+            """, (db_id, user_id, name, job['url'], azure_index_name, 
+                  'building'))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            # Start processing in background thread
+            self._start_vector_processing_background(db_id, scraping_job_id)
+            
+            logger.info(f"Created vector database {db_id} for user "
+                       f"{user_id} (async)")
+            return db_id
+            
+        except Exception as e:
+            logger.error(f"Failed to create vector database: {str(e)}")
+            raise
+
+    def _start_vector_processing_background(self, db_id: str, 
+                                          scraping_job_id: str):
+        """Start vector database processing in a background thread"""
+        def process_vector_db():
+            try:
+                logger.info("Starting background vector processing")
+                self._process_scraped_data_async(db_id, scraping_job_id)
+                logger.info("Background vector processing completed")
+            except Exception as e:
+                logger.error(f"Error in background vector processing: "
+                           f"{str(e)}", exc_info=True)
+                # Update status to failed
+                try:
+                    conn = self._get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE vector_databases 
+                        SET status = %s
+                        WHERE id = %s;
+                    """, ('failed', db_id))
+                    conn.commit()
+                    cursor.close()
+                    conn.close()
+                except Exception as db_error:
+                    logger.error(f"Failed to update vector DB status: "
+                               f"{db_error}")
+        
+        import threading
+        thread = threading.Thread(target=process_vector_db)
+        thread.daemon = True
+        thread.start()
+        logger.info(f"Started background thread for vector DB {db_id}")
     
     def _process_scraped_data_async(self, db_id: str, scraping_job_id: str):
         """Process scraped data and add to vector database"""
@@ -511,46 +592,3 @@ class VectorStoreService:
             logger.error(f"Failed to search in database {db_id}: {str(e)}")
             return []
 
-
-# Import celery after the class definition to avoid circular imports
-from celery import Celery
-
-# Initialize Celery for this module
-celery = Celery(
-    'vector_store',
-    broker=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
-    backend=os.getenv("REDIS_URL", "redis://localhost:6379/0")
-)
-
-@celery.task(bind=True)
-def process_vector_database_creation(self, db_id: str, scraping_job_id: str):
-    """Celery task for processing vector database creation"""
-    try:
-        logger.info(f"Starting vector database processing for {db_id}")
-        
-        service = VectorStoreService()
-        service._process_scraped_data_async(db_id, scraping_job_id)
-        
-        logger.info(f"Vector database processing completed for {db_id}")
-        return {"status": "completed", "db_id": db_id}
-        
-    except Exception as e:
-        logger.error(f"Vector database processing failed for {db_id}: {str(e)}")
-        
-        # Update database status to error
-        try:
-            service = VectorStoreService()
-            conn = service._get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE vector_databases 
-                SET status = %s, updated_at = CURRENT_TIMESTAMP
-                WHERE id = %s;
-            """, ('error', db_id))
-            conn.commit()
-            cursor.close()
-            conn.close()
-        except:
-            pass
-        
-        raise

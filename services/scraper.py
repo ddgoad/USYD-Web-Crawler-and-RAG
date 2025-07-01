@@ -554,3 +554,65 @@ class ScrapingService:
                 'error': str(e)
             }
     
+    def delete_scraping_job(self, job_id: str, user_id: int) -> bool:
+        """Delete scraping job and its associated data"""
+        try:
+            conn = self._get_db_connection()
+            if self.db_url.startswith("sqlite:"):
+                cursor = conn.cursor()
+                
+                # Check if job exists and belongs to user
+                cursor.execute("""
+                    SELECT id FROM scraping_jobs 
+                    WHERE id = ? AND user_id = ?;
+                """, (job_id, user_id))
+                
+                if not cursor.fetchone():
+                    cursor.close()
+                    conn.close()
+                    return False
+                
+                # Delete the job
+                cursor.execute("""
+                    DELETE FROM scraping_jobs WHERE id = ? AND user_id = ?;
+                """, (job_id, user_id))
+            else:
+                from psycopg2.extras import RealDictCursor
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
+                
+                # Check if job exists and belongs to user
+                cursor.execute("""
+                    SELECT id FROM scraping_jobs 
+                    WHERE id = %s AND user_id = %s;
+                """, (job_id, user_id))
+                
+                if not cursor.fetchone():
+                    cursor.close()
+                    conn.close()
+                    return False
+                
+                # Delete the job
+                cursor.execute("""
+                    DELETE FROM scraping_jobs WHERE id = %s AND user_id = %s;
+                """, (job_id, user_id))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            # Delete associated data files
+            import shutil
+            data_dir = f"data/raw/{job_id}"
+            if os.path.exists(data_dir):
+                try:
+                    shutil.rmtree(data_dir)
+                    logger.info(f"Deleted data directory: {data_dir}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete data directory {data_dir}: {str(e)}")
+            
+            logger.info(f"Deleted scraping job {job_id} for user {user_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to delete scraping job {job_id}: {str(e)}")
+            return False

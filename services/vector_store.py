@@ -340,10 +340,14 @@ class VectorStoreService:
             # Load scraped data
             data_file = f"data/raw/{scraping_job_id}/scraped_data.json"
             if not os.path.exists(data_file):
-                raise Exception("Scraped data file not found")
+                raise Exception(f"Scraped data file not found: {data_file}")
+            
+            logger.info(f"Loading scraped data from {data_file}")
             
             with open(data_file, 'r', encoding='utf-8') as f:
                 scraped_data = json.load(f)
+            
+            logger.info(f"Loaded scraped data: {type(scraped_data)}, success: {scraped_data.get('success', 'N/A')}")
             
             # Get database record
             conn = self._get_db_connection()
@@ -358,6 +362,7 @@ class VectorStoreService:
                 raise Exception("Vector database record not found")
             
             azure_index_name = db_record['index_name']
+            logger.info(f"Processing data for Azure index: {azure_index_name}")
             
             # Create search client for this index
             search_client = SearchClient(
@@ -370,20 +375,39 @@ class VectorStoreService:
             documents = []
             document_count = 0
             
-            if scraped_data['success']:
-                results = scraped_data.get('results', [])
-                if not isinstance(results, list):
-                    results = [scraped_data]  # Single page result
+            if scraped_data.get('success'):
+                # Handle both single page and multi-page results
+                if 'results' in scraped_data and isinstance(scraped_data['results'], list):
+                    # Deep crawl results
+                    results = scraped_data['results']
+                    logger.info(f"Processing {len(results)} pages from deep crawl")
+                elif 'content' in scraped_data:
+                    # Single page result
+                    results = [scraped_data]
+                    logger.info("Processing single page result")
+                else:
+                    logger.warning("No valid content found in scraped data")
+                    results = []
                 
                 for result in results:
-                    if not result.get('content'):
+                    content = result.get('content', '')
+                    if not content or not content.strip():
+                        logger.warning(f"Skipping page with no content: {result.get('url', 'unknown')}")
                         continue
                     
+                    logger.info(f"Processing page: {result.get('url', 'unknown')} with {len(content)} characters")
+                    
                     # Chunk the content
-                    chunks = self._chunk_text(result['content'])
+                    chunks = self._chunk_text(content)
+                    logger.info(f"Created {len(chunks)} chunks")
                     
                     # Generate embeddings for chunks
-                    embeddings = self._generate_embeddings(chunks)
+                    try:
+                        embeddings = self._generate_embeddings(chunks)
+                        logger.info(f"Generated {len(embeddings)} embeddings")
+                    except Exception as e:
+                        logger.error(f"Failed to generate embeddings: {str(e)}")
+                        continue
                     
                     # Create documents for each chunk
                     for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
@@ -403,16 +427,27 @@ class VectorStoreService:
                         documents.append(document)
                     
                     document_count += 1
+            else:
+                error_msg = scraped_data.get('error', 'Unknown error in scraped data')
+                raise Exception(f"Scraped data indicates failure: {error_msg}")
             
             # Upload documents to Azure Search
             if documents:
+                logger.info(f"Uploading {len(documents)} document chunks to Azure Search")
                 # Upload in batches
                 batch_size = 100
                 for i in range(0, len(documents), batch_size):
                     batch = documents[i:i + batch_size]
-                    search_client.upload_documents(documents=batch)
+                    try:
+                        search_client.upload_documents(documents=batch)
+                        logger.info(f"Uploaded batch {i//batch_size + 1}/{(len(documents) + batch_size - 1)//batch_size}")
+                    except Exception as e:
+                        logger.error(f"Failed to upload batch {i//batch_size + 1}: {str(e)}")
+                        raise
                 
-                logger.info(f"Uploaded {len(documents)} document chunks to index {azure_index_name}")
+                logger.info(f"Successfully uploaded all {len(documents)} document chunks to index {azure_index_name}")
+            else:
+                logger.warning("No documents to upload - no valid content found")
             
             # Update database record
             cursor.execute("""
@@ -428,7 +463,7 @@ class VectorStoreService:
             logger.info(f"Vector database {db_id} is ready with {document_count} documents")
             
         except Exception as e:
-            logger.error(f"Failed to process scraped data for database {db_id}: {str(e)}")
+            logger.error(f"Failed to process scraped data for database {db_id}: {str(e)}", exc_info=True)
             
             # Update status to error
             try:
@@ -442,8 +477,9 @@ class VectorStoreService:
                 conn.commit()
                 cursor.close()
                 conn.close()
-            except:
-                pass
+                logger.info(f"Updated vector database {db_id} status to error")
+            except Exception as db_error:
+                logger.error(f"Failed to update database status to error: {str(db_error)}")
     
     def get_user_databases(self, user_id: int) -> List[Dict]:
         """Get all vector databases for a user"""

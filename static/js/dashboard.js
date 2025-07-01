@@ -73,6 +73,9 @@ class Dashboard {
             } else if (e.target.matches('.delete-btn')) {
                 const dbId = e.target.dataset.dbId;
                 this.deleteVectorDatabase(dbId);
+            } else if (e.target.matches('.delete-scraping-job-btn')) {
+                const jobId = e.target.dataset.jobId;
+                this.deleteScrapingJob(jobId);
             }
         });
     }
@@ -132,13 +135,19 @@ class Dashboard {
             
             if (response.ok) {
                 this.showSuccessMessage('Scraping job started successfully!');
-                this.showProgressModal(result.job_id);
+                
+                // For single page scraping, don't show modal since it should be fast
+                if (scrapingType === 'single') {
+                    this.showSuccessMessage('Single page scraping started - check the jobs list for status updates.');
+                } else {
+                    // Only show progress modal for deep crawling
+                    this.showProgressModal(result.job_id);
+                }
+                
                 e.target.reset();
                 
-                // Reload jobs list
-                setTimeout(() => {
-                    this.loadScrapingJobs();
-                }, 1000);
+                // Reload jobs list immediately to show the new job
+                this.loadScrapingJobs();
             } else {
                 this.showErrorMessage(result.error || 'Failed to start scraping job');
             }
@@ -219,8 +228,13 @@ class Dashboard {
                         <span class="job-date">${new Date(job.created_at).toLocaleDateString()}</span>
                     </div>
                 </div>
-                <div class="job-status status-${job.status}">
-                    ${job.status}
+                <div class="job-actions">
+                    <div class="job-status status-${job.status}">
+                        ${job.status}
+                    </div>
+                    <button class="delete-scraping-job-btn" data-job-id="${job.id}" title="Delete Job">
+                        🗑️
+                    </button>
                 </div>
             </div>
         `).join('');
@@ -381,6 +395,30 @@ class Dashboard {
         } catch (error) {
             console.error('Error deleting vector database:', error);
             this.showErrorMessage('An error occurred while deleting the vector database');
+        }
+    }
+    
+    async deleteScrapingJob(jobId) {
+        if (!confirm('Are you sure you want to delete this scraping job? This will also remove all associated data.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/scrape/jobs/${jobId}`, {
+                method: 'DELETE'
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                this.showSuccessMessage('Scraping job deleted successfully!');
+                this.loadScrapingJobs(); // Reload the jobs list
+            } else {
+                this.showErrorMessage(result.error || 'Failed to delete scraping job');
+            }
+        } catch (error) {
+            console.error('Error deleting scraping job:', error);
+            this.showErrorMessage('An error occurred while deleting the scraping job');
         }
     }
     

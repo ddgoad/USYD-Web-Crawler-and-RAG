@@ -446,84 +446,64 @@ h4 { font-size: var(--font-size-lg); }
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--spacing-lg);
-    background: var(--bg-secondary);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--border-color);
-    transition: all var(--transition-fast);
-}
-
-.job-item:hover {
-    box-shadow: var(--shadow-md);
-    transform: translateY(-1px);
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    background-color: #f9f9f9;
 }
 
 .job-info {
-    flex: 1;
+    flex-grow: 1;
 }
 
-.job-url {
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: var(--spacing-xs);
-    word-break: break-all;
-}
-
-.job-meta {
+.job-actions {
     display: flex;
-    gap: var(--spacing-md);
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
+    align-items: center;
+    gap: 10px;
 }
 
-.job-type {
-    background: var(--bg-tertiary);
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border-radius: var(--radius-sm);
-    font-weight: 500;
+.delete-scraping-job-btn {
+    background: none;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    color: #dc3545;
+    padding: 5px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.delete-scraping-job-btn:hover {
+    background-color: #ffe6e6;
 }
 
 .job-status {
-    padding: var(--spacing-xs) var(--spacing-md);
-    border-radius: var(--radius-lg);
-    font-size: var(--font-size-sm);
-    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
     text-transform: uppercase;
 }
 
 .status-pending {
-    background: #fef3c7;
-    color: #92400e;
+    background-color: #ffc107;
+    color: #000;
 }
 
 .status-running {
-    background: #dbeafe;
-    color: #1e40af;
+    background-color: #007bff;
+    color: #fff;
 }
 
 .status-completed {
-    background: #d1fae5;
-    color: #065f46;
+    background-color: #28a745;
+    color: #fff;
 }
 
 .status-failed {
-    background: #fee2e2;
-    color: #991b1b;
-}
-
-.status-building {
-    background: #e0e7ff;
-    color: #3730a3;
-}
-
-.status-ready {
-    background: #d1fae5;
-    color: #065f46;
-}
-
-.status-error {
-    background: #fee2e2;
-    color: #991b1b;
+    background-color: #dc3545;
+    color: #fff;
 }
 
 /* Vector Database Styles */

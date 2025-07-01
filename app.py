@@ -280,6 +280,21 @@ def scraping_jobs():
         logger.error(f"Error getting scraping jobs: {str(e)}")
         return jsonify({"error": "Failed to get scraping jobs"}), 500
 
+@app.route("/api/scrape/jobs/<job_id>", methods=["DELETE"])
+@login_required
+def delete_scraping_job(job_id):
+    """Delete scraping job and its associated data"""
+    try:
+        success = scraping_service.delete_scraping_job(job_id, current_user.id)
+        if success:
+            logger.info(f"Deleted scraping job {job_id} for user {current_user.username}")
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "Job not found or not authorized"}), 404
+    except Exception as e:
+        logger.error(f"Error deleting scraping job: {str(e)}")
+        return jsonify({"error": "Failed to delete scraping job"}), 500
+
 @app.route("/api/vector-dbs")
 @login_required
 def vector_databases():

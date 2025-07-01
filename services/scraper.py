@@ -73,10 +73,12 @@ class ScrapingService:
                     )
                 """)
             else:
+                # Drop and recreate table to ensure correct schema
+                cursor.execute("DROP TABLE IF EXISTS scraping_jobs CASCADE;")
                 cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS scraping_jobs (
-                        id TEXT PRIMARY KEY,
-                        user_id INTEGER REFERENCES users(id),
+                    CREATE TABLE scraping_jobs (
+                        id VARCHAR(36) PRIMARY KEY,
+                        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                         url VARCHAR(2048) NOT NULL,
                         scraping_type VARCHAR(20) NOT NULL,
                         status VARCHAR(20) DEFAULT 'pending',
@@ -84,7 +86,7 @@ class ScrapingService:
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         completed_at TIMESTAMP,
                         result_summary JSONB
-                    )
+                    );
                 """)
             
             conn.commit()

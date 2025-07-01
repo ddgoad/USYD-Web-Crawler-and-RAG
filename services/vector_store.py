@@ -234,7 +234,8 @@ class VectorStoreService:
             
             # Create vector database record
             cursor.execute("""
-                INSERT INTO vector_databases (id, user_id, name, source_url, azure_index_name, status)
+                INSERT INTO vector_databases 
+                (id, user_id, name, source_url, index_name, status)
                 VALUES (%s, %s, %s, %s, %s, %s);
             """, (db_id, user_id, name, job['url'], azure_index_name, 'building'))
             
@@ -242,9 +243,8 @@ class VectorStoreService:
             cursor.close()
             conn.close()
             
-            # Process scraped data in background task
-            from services.vector_store import process_vector_database_creation
-            process_vector_database_creation.delay(db_id, scraping_job_id)
+            # Process scraped data immediately
+            self.process_vector_database_creation(db_id, scraping_job_id)
             
             logger.info(f"Created vector database {db_id} for user {user_id}")
             return db_id
@@ -276,7 +276,7 @@ class VectorStoreService:
             if not db_record:
                 raise Exception("Vector database record not found")
             
-            azure_index_name = db_record['azure_index_name']
+            azure_index_name = db_record['index_name']
             
             # Create search client for this index
             search_client = SearchClient(
@@ -405,8 +405,8 @@ class VectorStoreService:
             
             # Delete Azure Search index
             try:
-                self.index_client.delete_index(db_record['azure_index_name'])
-                logger.info(f"Deleted Azure Search index: {db_record['azure_index_name']}")
+                self.index_client.delete_index(db_record['index_name'])
+                logger.info(f"Deleted Azure Search index: {db_record['index_name']}")
             except Exception as e:
                 logger.warning(f"Failed to delete Azure Search index: {str(e)}")
             
@@ -445,7 +445,7 @@ class VectorStoreService:
             if not db_record:
                 raise Exception("Vector database not found or not ready")
             
-            azure_index_name = db_record['azure_index_name']
+            azure_index_name = db_record['index_name']
             
             # Create search client
             search_client = SearchClient(

@@ -267,7 +267,7 @@ class AuthService:
             logger.error(f"Get user by ID failed: {str(e)}")
             return None
     
-    def create_user(self, username: str, password: str) -> bool:
+    def create_user(self, username: str, password: str, email: str = None) -> bool:
         """Create new user"""
         try:
             conn = self._get_db_connection()
@@ -275,16 +275,20 @@ class AuthService:
             
             password_hash = generate_password_hash(password)
             
+            # Generate email if not provided
+            if not email:
+                email = f"{username}@usyd.edu.au"
+            
             if self.db_url.startswith("sqlite:"):
                 cursor.execute("""
-                    INSERT INTO users (username, password_hash)
-                    VALUES (?, ?);
-                """, (username, password_hash))
+                    INSERT INTO users (username, email, password_hash)
+                    VALUES (?, ?, ?);
+                """, (username, email, password_hash))
             else:
                 cursor.execute("""
-                    INSERT INTO users (username, password_hash)
-                    VALUES (%s, %s);
-                """, (username, password_hash))
+                    INSERT INTO users (username, email, password_hash)
+                    VALUES (%s, %s, %s);
+                """, (username, email, password_hash))
             
             conn.commit()
             cursor.close()

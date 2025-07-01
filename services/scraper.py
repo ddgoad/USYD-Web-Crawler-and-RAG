@@ -10,22 +10,16 @@ import uuid
 import sqlite3
 from datetime import datetime
 from typing import Dict, List, Optional
-from celery import Celery
 import requests
 from urllib.parse import urljoin, urlparse
 import xml.etree.ElementTree as ET
 from crawl4ai import AsyncWebCrawler
 from crawl4ai.extraction_strategy import LLMExtractionStrategy
 import asyncio
+import threading
+import time
 
 logger = logging.getLogger(__name__)
-
-# Initialize Celery
-celery = Celery(
-    'scraper',
-    broker=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
-    backend=os.getenv("REDIS_URL", "redis://localhost:6379/0")
-)
 
 class ScrapingService:
     def __init__(self):
@@ -72,12 +66,11 @@ class ScrapingService:
                     )
                 """)
             else:
-                # Drop and recreate table to ensure correct schema
-                cursor.execute("DROP TABLE IF EXISTS scraping_jobs CASCADE;")
+                # PostgreSQL schema
                 cursor.execute("""
-                    CREATE TABLE scraping_jobs (
+                    CREATE TABLE IF NOT EXISTS scraping_jobs (
                         id VARCHAR(36) PRIMARY KEY,
-                        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                        user_id INTEGER NOT NULL,
                         url VARCHAR(2048) NOT NULL,
                         scraping_type VARCHAR(20) NOT NULL,
                         status VARCHAR(20) DEFAULT 'pending',
@@ -95,7 +88,6 @@ class ScrapingService:
             logger.error(f"Scraping database initialization failed: {str(e)}")
             # Don't raise, as this shouldn't prevent the app from starting
     
-
     def create_scraping_job(self, user_id, url: str, 
                            scraping_type: str, config: Dict) -> str:
         """Create a new scraping job"""
@@ -117,6 +109,16 @@ class ScrapingService:
                 """, (job_id, user_id, url, scraping_type, 'pending', json.dumps(config)))
             
             conn.commit()
+            
+            # Verify the job was created by reading it back
+            if self.db_url.startswith("sqlite:"):
+                cursor.execute("SELECT id FROM scraping_jobs WHERE id = ?", (job_id,))
+            else:
+                cursor.execute("SELECT id FROM scraping_jobs WHERE id = %s", (job_id,))
+            
+            if not cursor.fetchone():
+                raise Exception(f"Failed to verify job creation for {job_id}")
+            
             cursor.close()
             conn.close()
             
@@ -125,6 +127,130 @@ class ScrapingService:
             
         except Exception as e:
             logger.error(f"Failed to create scraping job: {str(e)}")
+            raise
+
+    def start_scraping_job(self, job_id: str):
+        """Start a scraping job in a background thread"""
+        def process_job():
+            try:
+                # Small delay to ensure database transaction is fully committed
+                time.sleep(0.5)
+                logger.info(f"Starting background thread for job {job_id}")
+                
+                # Run the async scraping function
+                asyncio.run(self._process_scraping_job_async(job_id))
+                
+                logger.info(f"Background thread completed for job {job_id}")
+            except Exception as e:
+                logger.error(f"Error processing job {job_id}: {str(e)}", exc_info=True)
+        
+        logger.info(f"Creating background thread for job {job_id}")
+        thread = threading.Thread(target=process_job, name=f"scraper-{job_id}")
+        thread.daemon = True
+        thread.start()
+        logger.info(f"Background thread started for job {job_id}")
+
+    async def _process_scraping_job_async(self, job_id: str):
+        """Process a scraping job asynchronously"""
+        try:
+            logger.info(f"Processing scraping job {job_id} - getting job details")
+            
+            # Get job details
+            conn = self._get_db_connection()
+            if self.db_url.startswith("sqlite:"):
+                cursor = conn.cursor()
+            else:
+                from psycopg2.extras import RealDictCursor
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
+            
+            if self.db_url.startswith("sqlite:"):
+                cursor.execute("""
+                    SELECT * FROM scraping_jobs WHERE id = ?;
+                """, (job_id,))
+            else:
+                cursor.execute("""
+                    SELECT * FROM scraping_jobs WHERE id = %s;
+                """, (job_id,))
+            
+            job = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            
+            if not job:
+                logger.error(f"Job {job_id} not found in database")
+                self._update_job_status(job_id, 'failed', 0, f"Job {job_id} not found in database")
+                raise Exception(f"Job {job_id} not found")
+            
+            logger.info(f"Found job {job_id}, starting processing")
+            
+            # Convert job to dict format
+            if self.db_url.startswith("sqlite:"):
+                job_dict = {
+                    'id': job[0],
+                    'user_id': job[1],
+                    'url': job[2],
+                    'scraping_type': job[3],
+                    'status': job[4],
+                    'config': job[5],
+                    'created_at': job[6],
+                    'completed_at': job[7],
+                    'result_summary': job[8]
+                }
+            else:
+                job_dict = dict(job)
+            
+            # Update status to running
+            self._update_job_status(job_id, 'running', 10, 'Starting scraping process')
+            
+            # Run the appropriate scraping method
+            # Handle config parsing based on whether it's already parsed or a JSON string
+            if isinstance(job_dict['config'], str):
+                try:
+                    config = json.loads(job_dict['config']) if job_dict['config'] else {}
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(f"Failed to parse config JSON: {job_dict['config']}")
+                    config = {}
+            elif isinstance(job_dict['config'], dict):
+                config = job_dict['config'] or {}
+            else:
+                config = {}
+            
+            result = None
+            if job_dict['scraping_type'] == 'single':
+                self._update_job_status(job_id, 'running', 30, 'Scraping single page')
+                result = await self.scrape_single_page(job_dict['url'])
+            elif job_dict['scraping_type'] == 'deep':
+                max_depth = config.get('max_depth', 3)
+                max_pages = config.get('max_pages', 50)
+                self._update_job_status(job_id, 'running', 30, f'Starting deep crawl (depth: {max_depth}, max pages: {max_pages})')
+                result = await self.scrape_website_deep(job_dict['url'], max_depth, max_pages)
+            elif job_dict['scraping_type'] == 'sitemap':
+                max_pages = config.get('max_pages', 100)
+                self._update_job_status(job_id, 'running', 30, f'Starting sitemap crawl (max pages: {max_pages})')
+                result = await self.scrape_from_sitemap(job_dict['url'], max_pages)
+            else:
+                raise Exception(f"Unknown scraping type: {job_dict['scraping_type']}")
+            
+            if result and result.get('success'):
+                self._update_job_status(job_id, 'running', 80, 'Saving scraped data')
+                
+                # Save scraped data to file
+                data_dir = f"data/raw/{job_id}"
+                os.makedirs(data_dir, exist_ok=True)
+                
+                with open(f"{data_dir}/scraped_data.json", 'w', encoding='utf-8') as f:
+                    json.dump(result, f, indent=2, ensure_ascii=False)
+                
+                self._update_job_status(job_id, 'completed', 100, 'Scraping completed successfully', result)
+                logger.info(f"Scraping job {job_id} completed successfully")
+            else:
+                error_msg = result.get('error', 'Unknown error') if result else 'Scraping failed with no result'
+                self._update_job_status(job_id, 'failed', 0, f"Scraping failed: {error_msg}")
+                logger.error(f"Scraping job {job_id} failed: {error_msg}")
+            
+        except Exception as e:
+            logger.error(f"Error processing scraping job {job_id}: {str(e)}", exc_info=True)
+            self._update_job_status(job_id, 'failed', 0, f"Error: {str(e)}")
             raise
     
     def get_job_status(self, job_id: str, user_id) -> Optional[Dict]:
@@ -428,98 +554,3 @@ class ScrapingService:
                 'error': str(e)
             }
     
-def run_scraping_job_sync(job_id: str):
-    """Synchronous wrapper for the scraping job that can be called by Celery"""
-    async def process_job():
-        try:
-            # Create service instance to use proper database connection handling
-            service = ScrapingService()
-            
-            # Get job details using the service's database connection method
-            conn = service._get_db_connection()
-            cursor = conn.cursor()
-            
-            if service.db_url.startswith("sqlite:"):
-                cursor.execute("""
-                    SELECT * FROM scraping_jobs WHERE id = ?;
-                """, (job_id,))
-            else:
-                cursor.execute("""
-                    SELECT * FROM scraping_jobs WHERE id = %s;
-                """, (job_id,))
-            
-            job = cursor.fetchone()
-            cursor.close()
-            conn.close()
-            
-            if not job:
-                raise Exception(f"Job {job_id} not found")
-            
-            # Convert job to dict format
-            if service.db_url.startswith("sqlite:"):
-                job_dict = {
-                    'id': job[0],
-                    'user_id': job[1],
-                    'url': job[2],
-                    'scraping_type': job[3],
-                    'status': job[4],
-                    'config': job[5],
-                    'created_at': job[6],
-                    'completed_at': job[7],
-                    'result_summary': job[8]
-                }
-            else:
-                job_dict = dict(job)
-            
-            # Update status to running
-            service._update_job_status(job_id, 'running', 10, 'Starting scraping process')
-            
-            # Run the appropriate scraping method
-            config = json.loads(job_dict['config']) if job_dict['config'] else {}
-            
-            result = None
-            if job_dict['scraping_type'] == 'single':
-                service._update_job_status(job_id, 'running', 30, 'Scraping single page')
-                result = await service.scrape_single_page(job_dict['url'])
-            elif job_dict['scraping_type'] == 'deep':
-                max_depth = config.get('max_depth', 3)
-                max_pages = config.get('max_pages', 50)
-                service._update_job_status(job_id, 'running', 30, f'Starting deep crawl (depth: {max_depth}, max pages: {max_pages})')
-                result = await service.scrape_website_deep(job_dict['url'], max_depth, max_pages)
-            elif job_dict['scraping_type'] == 'sitemap':
-                max_pages = config.get('max_pages', 100)
-                service._update_job_status(job_id, 'running', 30, f'Starting sitemap crawl (max pages: {max_pages})')
-                result = await service.scrape_from_sitemap(job_dict['url'], max_pages)
-            else:
-                raise Exception(f"Unknown scraping type: {job_dict['scraping_type']}")
-            
-            if result['success']:
-                service._update_job_status(job_id, 'running', 80, 'Saving scraped data')
-                
-                # Save scraped data to file
-                data_dir = f"data/raw/{job_id}"
-                os.makedirs(data_dir, exist_ok=True)
-                
-                with open(f"{data_dir}/scraped_data.json", 'w', encoding='utf-8') as f:
-                    json.dump(result, f, indent=2, ensure_ascii=False)
-                
-                service._update_job_status(job_id, 'completed', 100, 'Scraping completed successfully', result)
-                logger.info(f"Scraping job {job_id} completed successfully")
-            else:
-                error_msg = result.get('error', 'Unknown error')
-                service._update_job_status(job_id, 'failed', 0, f"Scraping failed: {error_msg}")
-                logger.error(f"Scraping job {job_id} failed: {error_msg}")
-            
-        except Exception as e:
-            logger.error(f"Error processing scraping job {job_id}: {str(e)}")
-            service = ScrapingService()
-            service._update_job_status(job_id, 'failed', 0, f"Error: {str(e)}")
-            raise
-    
-    # Run the async function
-    return asyncio.run(process_job())
-
-@celery.task(bind=True)
-def process_scraping_job(self, job_id: str):
-    """Celery task for processing scraping jobs"""
-    return run_scraping_job_sync(job_id)

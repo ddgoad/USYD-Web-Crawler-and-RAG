@@ -214,15 +214,20 @@ def auth_status():
 def start_scraping():
     """Start web scraping job"""
     try:
+        logger.info(f"Scraping request received from user {current_user.username}")
         data = request.get_json()
         url = data.get("url")
         scraping_type = data.get("type", "single")
         config = data.get("config", {})
         
+        logger.info(f"Scraping parameters: URL={url}, type={scraping_type}, config={config}")
+        
         if not url:
+            logger.warning("Scraping request rejected: URL is required")
             return jsonify({"error": "URL is required"}), 400
         
         # Create scraping job
+        logger.info(f"Creating scraping job for URL: {url}")
         job_id = scraping_service.create_scraping_job(
             user_id=current_user.id,
             url=url,
@@ -233,32 +238,15 @@ def start_scraping():
         logger.info(f"Created scraping job {job_id} for user {current_user.username}")
         flush_print(f"=== CREATED SCRAPING JOB {job_id} ===")
         
-        # For local development, start processing immediately in background thread
-        import threading
-        def process_job():
-            try:
-                flush_print(f"=== [THREAD] Starting background thread for job {job_id} ===")
-                logger.info(f"[THREAD] Starting background thread for job {job_id}")
-                from services.scraper import run_scraping_job_sync
-                run_scraping_job_sync(job_id)
-                logger.info(f"[THREAD] Background thread completed for job {job_id}")
-                flush_print(f"=== [THREAD] Background thread completed for job {job_id} ===")
-            except Exception as e:
-                flush_print(f"=== [THREAD] ERROR processing job {job_id}: {str(e)} ===")
-                logger.error(f"[THREAD] Error processing job {job_id}: {str(e)}", exc_info=True)
-        
-        flush_print(f"=== [FLASK] Creating background thread for job {job_id} ===")
-        logger.info(f"[FLASK] Creating background thread for job {job_id}")
-        thread = threading.Thread(target=process_job, name=f"scraper-{job_id}")
-        thread.daemon = True
-        thread.start()
-        logger.info(f"[FLASK] Background thread started for job {job_id}")
-        flush_print(f"=== [FLASK] Background thread started for job {job_id} ===")
+        # Start processing immediately in background thread
+        logger.info(f"Starting background processing for job {job_id}")
+        scraping_service.start_scraping_job(job_id)
+        logger.info(f"Background processing initiated for job {job_id}")
         
         return jsonify({"job_id": job_id, "status": "started"})
         
     except Exception as e:
-        logger.error(f"Error starting scraping job: {str(e)}")
+        logger.error(f"Error starting scraping job: {str(e)}", exc_info=True)
         return jsonify({"error": f"Failed to start scraping job: {str(e)}"}), 500
 
 @app.route("/api/scrape/status/<job_id>")
@@ -436,8 +424,17 @@ def chat_history(session_id):
 @app.route("/health")
 def health_check():
     """Health check endpoint for monitoring"""
+    try:
+        # Test database connection
+        auth_service._get_db_connection().close()
+        db_status = "healthy"
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        db_status = "unhealthy"
+    
     return jsonify({
-        "status": "healthy",
+        "status": "healthy" if db_status == "healthy" else "degraded",
+        "database": db_status,
         "timestamp": datetime.utcnow().isoformat(),
         "version": "1.0.0"
     })

@@ -28,6 +28,15 @@ from azure.core.credentials import AzureKeyCredential
 from openai import AzureOpenAI
 import tiktoken
 
+# Import Celery for background tasks (future enhancement)
+try:
+    from celery import Celery
+    CELERY_AVAILABLE = True
+except ImportError:
+    logger = logging.getLogger(__name__)
+    logger.warning("Celery not available, using threading for async processing")
+    CELERY_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 class VectorStoreService:
@@ -236,9 +245,9 @@ class VectorStoreService:
             # Create vector database record
             cursor.execute("""
                 INSERT INTO vector_databases 
-                (id, user_id, name, source_url, index_name, status)
-                VALUES (%s, %s, %s, %s, %s, %s);
-            """, (db_id, user_id, name, job['url'], azure_index_name, 'building'))
+                (id, user_id, job_id, name, source_url, azure_index_name, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s);
+            """, (db_id, user_id, scraping_job_id, name, job['url'], azure_index_name, 'building'))
             
             conn.commit()
             cursor.close()
@@ -281,9 +290,9 @@ class VectorStoreService:
             # Create vector database record
             cursor.execute("""
                 INSERT INTO vector_databases
-                (id, user_id, name, source_url, index_name, status)
-                VALUES (%s, %s, %s, %s, %s, %s);
-            """, (db_id, user_id, name, job['url'], azure_index_name, 
+                (id, user_id, job_id, name, source_url, azure_index_name, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s);
+            """, (db_id, user_id, scraping_job_id, name, job['url'], azure_index_name, 
                   'building'))
             
             conn.commit()
@@ -303,10 +312,15 @@ class VectorStoreService:
 
     def _start_vector_processing_background(self, db_id: str, 
                                           scraping_job_id: str):
-        """Start vector database processing in a background thread"""
+        """Start vector database processing using background thread (simplified approach)"""
+        # Use threading approach which is more reliable and simpler
+        self._start_processing_with_threading(db_id, scraping_job_id)
+            
+    def _start_processing_with_threading(self, db_id: str, scraping_job_id: str):
+        """Fallback method using threading when Celery is not available"""
         def process_vector_db():
             try:
-                logger.info("Starting background vector processing")
+                logger.info("Starting background vector processing (threading)")
                 self._process_scraped_data_async(db_id, scraping_job_id)
                 logger.info("Background vector processing completed")
             except Exception as e:
@@ -320,7 +334,7 @@ class VectorStoreService:
                         UPDATE vector_databases 
                         SET status = %s
                         WHERE id = %s;
-                    """, ('failed', db_id))
+                    """, ('error', db_id))
                     conn.commit()
                     cursor.close()
                     conn.close()
@@ -627,4 +641,34 @@ class VectorStoreService:
         except Exception as e:
             logger.error(f"Failed to search in database {db_id}: {str(e)}")
             return []
+
+    def get_database_status(self, db_id: str, user_id: int) -> Optional[Dict]:
+        """Get vector database status for non-blocking progress polling"""
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT status, document_count, created_at, updated_at
+                FROM vector_databases 
+                WHERE id = %s AND user_id = %s;
+            """, (db_id, user_id))
+            
+            result = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            
+            if result:
+                return {
+                    'status': result[0],
+                    'document_count': result[1] or 0,
+                    'created_at': result[2].isoformat() if result[2] else None,
+                    'updated_at': result[3].isoformat() if result[3] else None
+                }
+            else:
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to get database status for {db_id}: {str(e)}")
+            return None
 

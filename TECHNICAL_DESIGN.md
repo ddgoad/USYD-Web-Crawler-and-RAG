@@ -38,9 +38,11 @@ The USYD Web Crawler and RAG solution is designed as a multi-layered architectur
 #### **Frontend Layer - User Interface**
 The user interface is built as a modern, responsive web application using Flask templates with HTML, CSS, and JavaScript. The interface is divided into two main functional areas:
 
-1. **Web Scraping Control Panel**: This section allows users to configure and initiate web scraping operations. Users can specify the target URL, choose scraping modes (single page, deep crawl, or sitemap-based), and set parameters like crawl depth and page limits. When a scraping job is initiated, the interface provides real-time progress feedback through WebSocket connections, showing users exactly what's happening as their content is being processed.
+1. **Web Scraping Control Panel**: This section allows users to configure and initiate web scraping operations. Users can specify the target URL, choose scraping modes (single page, deep crawl, or sitemap-based), and set parameters like crawl depth and page limits. When a scraping job is initiated, the interface provides real-time progress feedback through WebSocket connections, showing users exactly what's happening as their content is being processed. Once scraping completes, users can see their completed jobs and manually choose to create vector databases from them.
 
-2. **Chat Interface**: Once vector databases are created from scraped content, users can select a database and interact with it through an AI-powered chat interface. The interface allows users to choose between different AI models (GPT-4o or o3-mini), adjust search parameters (semantic, keyword, or hybrid search), and modify AI behavior settings like temperature.
+2. **Vector Database Management**: After scraping jobs complete, users can click "Create Vector Database" and select which completed scraping job to process. This initiates the creation of a dedicated Azure AI Search index. Users can monitor the progress of vector database creation and see when indexes are ready for use.
+
+3. **Chat Interface**: Once vector databases are ready, users can select a specific database and interact with it through an AI-powered chat interface. The interface allows users to choose between different AI models (GPT-4o or o3-mini), adjust search parameters (semantic, keyword, or hybrid search), and modify AI behavior settings like temperature before beginning their query session.
 
 #### **Backend API Layer - Business Logic**
 The Flask-based backend serves as the orchestration layer that coordinates all system components. It handles user authentication, manages scraping jobs, interfaces with Azure services, and provides RESTful API endpoints for the frontend. The backend is designed to be stateless and scalable, with session management handled through Redis for high availability.
@@ -52,7 +54,7 @@ The scraping engine is built around Crawl4AI, a modern web scraping framework th
 - **Deep Crawl Mode**: Systematically explores a website by following internal links up to a specified depth, ideal for comprehensive site analysis
 - **Sitemap Mode**: Uses XML sitemaps to efficiently discover and scrape all important pages on a website
 
-The scraping process is asynchronous, using Celery workers to handle jobs in the background while providing real-time progress updates to users.
+The scraping process is asynchronous, using Celery workers to handle jobs in the background while providing real-time progress updates to users. This ensures the user interface remains responsive and users can continue using other parts of the application while scraping operations are running.
 
 #### **Content Processing Pipeline - Data Transformation**
 Once content is scraped, it goes through a sophisticated processing pipeline:
@@ -62,12 +64,27 @@ Once content is scraped, it goes through a sophisticated processing pipeline:
 3. **Metadata Extraction**: Important metadata like titles, URLs, publication dates, and content structure is preserved for search and citation purposes
 4. **Embedding Generation**: Text chunks are converted into high-dimensional vector representations using Azure OpenAI's embedding models
 
-#### **Vector Database Layer - Intelligent Storage**
-Azure AI Search serves as the vector database, providing both traditional keyword search and semantic vector search capabilities. The system creates separate search indexes for each scraping job, allowing users to maintain multiple knowledge bases. The vector database supports:
+#### **Vector Database Layer - Intelligent Storage (Azure-Only Architecture)**
+Azure AI Search serves as the exclusive vector database solution, with each scraping job resulting in the programmatic creation of a dedicated Azure AI Search index. This Azure-only architecture ensures all vector storage and processing occurs in the cloud, with no local or SQLite dependencies. Key characteristics:
 
-- **Semantic Search**: Finding content based on meaning and context rather than exact keyword matches
-- **Keyword Search**: Traditional full-text search for precise term matching
-- **Hybrid Search**: Combining both approaches for optimal retrieval accuracy
+#### **Per-Job Index Creation**:
+- Users manually initiate vector database creation after scraping job completion
+- Each user-initiated vector database creation results in a new, uniquely named Azure AI Search index
+- Index names follow the pattern: `usyd-rag-{user_id}-{timestamp}-{job_id}`
+- Indexes are created programmatically via the Azure Search Management REST API when user clicks "Create Vector Database"
+- Each index is configured with appropriate vector field mappings for embeddings
+
+**Azure-Exclusive Vector Processing**:
+- All embedding generation uses Azure OpenAI Services
+- Vector storage occurs exclusively in Azure AI Search indexes
+- No local vector databases or SQLite storage for vectors
+- Embeddings are stored directly in Azure AI Search vector fields
+
+**Search Capabilities**:
+- **Semantic Search**: Finding content based on meaning and context using Azure AI Search vector capabilities
+- **Keyword Search**: Traditional full-text search using Azure AI Search text fields
+- **Hybrid Search**: Combining vector and text search for optimal retrieval accuracy
+- All search operations execute entirely within Azure infrastructure
 
 #### **AI Integration Layer - Intelligent Responses**
 The AI layer uses Azure OpenAI services to provide intelligent responses to user queries. The system implements a Retrieval-Augmented Generation (RAG) approach:
@@ -79,12 +96,14 @@ The AI layer uses Azure OpenAI services to provide intelligent responses to user
 5. **Source Attribution**: Responses include citations and links back to original sources
 
 #### **Background Processing - Scalable Operations**
-All heavy computational tasks (web scraping, content processing, embedding generation) are handled by background workers using Celery and Redis. This architecture ensures:
+All heavy computational tasks (web scraping, content processing, embedding generation, vector database creation) are handled by background workers using Celery and Redis. This architecture ensures:
 
+- **Non-Blocking Operations**: Both scraping and vector database creation run asynchronously without freezing the user interface
 - **Responsiveness**: The user interface remains responsive during long-running operations
+- **Concurrent Operations**: Users can initiate multiple scraping jobs and vector database creations simultaneously
 - **Scalability**: Multiple workers can process jobs in parallel
 - **Reliability**: Failed jobs can be retried automatically
-- **Progress Tracking**: Real-time status updates keep users informed of job progress
+- **Progress Tracking**: Real-time status updates keep users informed of job progress without blocking the UI
 
 #### **Data Persistence - Reliable Storage**
 The system uses PostgreSQL for storing user data, job metadata, and application state. This includes:
@@ -94,19 +113,33 @@ The system uses PostgreSQL for storing user data, job metadata, and application 
 - **Vector Database Metadata**: Information about created indexes and their contents
 - **Chat History**: Conversation logs for user reference and system improvement
 
-#### **Integration Flow - End-to-End Process**
-The complete user journey follows this integrated flow:
+#### **Integration Flow - User-Initiated Multi-Step Azure-Only Process**
+The complete user journey follows this user-controlled, multi-step Azure-only flow with asynchronous processing:
 
 1. **Authentication**: Users log in through the secure authentication system
-2. **Job Configuration**: Users specify scraping parameters through the intuitive interface
-3. **Content Acquisition**: The scraping engine processes websites according to user specifications
-4. **Content Processing**: Raw content is cleaned, chunked, and embedded automatically
-5. **Index Creation**: Processed content is stored in Azure AI Search with appropriate metadata
-6. **Interactive Querying**: Users can immediately begin asking questions about the scraped content
-7. **Intelligent Responses**: The AI system provides accurate, source-attributed answers
-8. **Continuous Learning**: The system learns from user interactions to improve future responses
+2. **Scraping Job Creation**: Users specify scraping parameters and initiate web scraping jobs (asynchronous, non-blocking)
+3. **Asynchronous Content Acquisition**: The scraping engine processes websites in the background without blocking the UI, users can continue using the application
+4. **User-Initiated Vector Database Creation**: After scraping completes, users manually click "Create Vector Database" and select a completed scraping job (asynchronous, non-blocking)
+5. **Azure Index Creation**: The selected job's content is used to programmatically create a new Azure AI Search index with vector field configuration (background processing)
+6. **Content Processing and Vector Storage**: Raw content is cleaned, chunked, embedded using Azure OpenAI, and stored exclusively in the newly created Azure AI Search index (asynchronous background processing)
+7. **Vector Database Selection**: Users choose which vector database/Azure AI Search index they want to work with
+8. **LLM Configuration**: Users select an LLM model (GPT-4o or o3-mini) and configure hyperparameters (temperature, search type)
+9. **Interactive Querying**: Users ask questions about the scraped content using their configured Azure-based search and LLM setup
+10. **Intelligent Responses**: The AI system provides accurate, source-attributed answers using the user's selected configuration
 
-This integrated architecture ensures that users have a seamless experience from content discovery to intelligent interaction, while the system maintains high performance, reliability, and scalability.
+**Key User Control Points**:
+- **Step 2**: User initiates scraping job (asynchronous execution, UI remains responsive)
+- **Step 4**: User initiates vector database creation from completed scraping job (asynchronous execution, UI remains responsive)
+- **Step 7**: User selects which vector database to use for queries
+- **Step 8**: User configures LLM and search parameters
+
+**Asynchronous Benefits**:
+- Users can initiate multiple scraping jobs simultaneously
+- Users can create multiple vector databases concurrently
+- The interface remains responsive during long-running operations
+- Real-time progress updates without blocking user interactions
+
+This user-controlled, Azure-exclusive architecture ensures that all vector operations occur entirely within Azure infrastructure while giving users complete control over each step of the process and maintaining a responsive user experience.
 
 ## Technology Stack
 
@@ -139,11 +172,12 @@ The complete requirements.txt file includes all necessary dependencies organized
    - Content filtering and cleaning
    - Real-time progress tracking
 
-3. **Vector Database Management**
-   - Automatic text chunking and embedding
-   - Vector storage in Azure AI Search
-   - Metadata preservation
-   - Search index management
+3. **Vector Database Management (Azure-Only)**
+   - Programmatic Azure AI Search index creation per scraping job
+   - Automatic text chunking and embedding via Azure OpenAI
+   - Vector storage exclusively in Azure AI Search indexes
+   - Metadata preservation and job-to-index mapping
+   - Azure-based search index management (no local vector storage)
 
 4. **Chat Interface**
    - Real-time chat with AI models
@@ -211,33 +245,74 @@ class ScrapingService:
         pass
 ```
 
-### 3. Vector Database Service (`vector_store.py`)
+### 3. Vector Database Service (`vector_store.py`) - Azure-Only Implementation
 ```python
 from azure.search.documents import SearchClient
+from azure.search.documents.indexes import SearchIndexClient
 from azure.core.credentials import AzureKeyCredential
+from celery import Celery
+import datetime
 
 class VectorStoreService:
     def __init__(self):
-        self.search_client = SearchClient(
+        self.index_client = SearchIndexClient(
             endpoint=os.getenv("AZURE_SEARCH_ENDPOINT"),
-            index_name=os.getenv("AZURE_SEARCH_INDEX"),
             credential=AzureKeyCredential(os.getenv("AZURE_SEARCH_KEY"))
         )
     
-    def create_index(self, index_name: str) -> bool:
-        """Create a new search index"""
+    def create_job_index(self, user_id: int, job_id: str) -> str:
+        """Create a new Azure AI Search index for a specific scraping job"""
+        timestamp = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        index_name = f"usyd-rag-{user_id}-{timestamp}-{job_id}"
+        
+        # Create index with vector field configuration
+        # This creates a dedicated Azure AI Search index for this job
         pass
     
-    def add_documents(self, documents: List[dict]) -> bool:
-        """Add documents to vector store"""
+    @celery.task
+    def create_vector_database_async(self, user_id: int, job_id: str, db_name: str) -> str:
+        """Asynchronous task to create vector database from scraping job"""
+        # This runs in background without blocking the UI
+        # 1. Create Azure AI Search index
+        # 2. Process and chunk content from job
+        # 3. Generate embeddings
+        # 4. Upload to Azure AI Search index
+        # 5. Update database status
         pass
     
-    def search(self, query: str, search_type: str = "semantic") -> List[dict]:
-        """Search documents in vector store"""
+    def get_search_client(self, index_name: str) -> SearchClient:
+        """Get search client for a specific job's index"""
+        return SearchClient(
+            endpoint=os.getenv("AZURE_SEARCH_ENDPOINT"),
+            index_name=index_name,
+            credential=AzureKeyCredential(os.getenv("AZURE_SEARCH_KEY"))
+        )
+    
+    def add_documents_to_job_index(self, index_name: str, documents: List[dict]) -> bool:
+        """Add documents to a specific job's Azure AI Search index"""
+        search_client = self.get_search_client(index_name)
+        # Add documents with embeddings to the job-specific index
         pass
     
-    def delete_index(self, index_name: str) -> bool:
-        """Delete a search index"""
+    def search_job_index(self, index_name: str, query: str, search_type: str = "semantic") -> List[dict]:
+        """Search documents in a specific job's Azure AI Search index"""
+        search_client = self.get_search_client(index_name)
+        # Perform search within the job-specific index
+        pass
+    
+    def delete_job_index(self, index_name: str) -> bool:
+        """Delete a specific job's Azure AI Search index"""
+        # Remove the job-specific index from Azure AI Search
+        pass
+    
+    def list_user_indexes(self, user_id: int) -> List[str]:
+        """List all Azure AI Search indexes for a specific user"""
+        # Return all indexes matching the user's naming pattern
+        pass
+    
+    def get_vector_db_status(self, db_id: str) -> dict:
+        """Get current status of vector database creation (non-blocking)"""
+        # Return status: building, ready, error with progress information
         pass
 ```
 
@@ -328,18 +403,22 @@ CREATE TABLE scraping_jobs (
 );
 ```
 
-#### Vector Databases Table
+#### Vector Databases Table (Azure Index Tracking)
 ```sql
 CREATE TABLE vector_databases (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id),
+    job_id INTEGER REFERENCES scraping_jobs(id),
     name VARCHAR(100) NOT NULL,
     source_url VARCHAR(2048) NOT NULL,
-    azure_index_name VARCHAR(100) NOT NULL,
+    azure_index_name VARCHAR(100) UNIQUE NOT NULL, -- Unique Azure AI Search index name
     document_count INTEGER DEFAULT 0,
+    embedding_count INTEGER DEFAULT 0,
     status VARCHAR(20) DEFAULT 'building', -- 'building', 'ready', 'error'
+    index_size_mb DECIMAL(10,2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, job_id) -- Each job gets exactly one vector database/index
 );
 ```
 
@@ -412,9 +491,15 @@ GET /api/scrape/jobs
 GET /api/vector-dbs
 - Response: {"databases": [array of vector db objects]}
 
+GET /api/scrape/completed-jobs
+- Response: {"jobs": [array of completed scraping jobs available for vector db creation]}
+
 POST /api/vector-dbs/create
 - Body: {"name": "string", "scraping_job_id": "string"}
-- Response: {"db_id": "string", "status": "created"}
+- Response: {"db_id": "string", "azure_index_name": "string", "status": "building"}
+
+GET /api/vector-dbs/{db_id}/status
+- Response: {"status": "building|ready|error", "progress": integer, "document_count": integer}
 
 DELETE /api/vector-dbs/{db_id}
 - Response: {"success": boolean}
@@ -454,6 +539,144 @@ POST /api/chat/message
 GET /api/chat/history/{session_id}
 - Response: {"messages": [array of message objects]}
 ```
+
+## Azure-Only Vector Processing Workflow
+
+### Per-Job Vector Store Creation Architecture
+
+The USYD Web Crawler and RAG solution implements a strict Azure-only architecture where each scraping job results in the creation of a dedicated Azure AI Search index. This design ensures complete isolation between jobs while leveraging Azure's enterprise-grade infrastructure for all vector operations.
+
+#### **Job-to-Index Mapping**
+- **User-Controlled Relationship**: Users choose which completed scraping jobs to convert into Azure AI Search indexes
+- **One-to-One Relationship**: Each vector database creation creates exactly one Azure AI Search index from one scraping job
+- **Unique Naming Convention**: `usyd-rag-{user_id}-{timestamp}-{job_id}`
+- **User-Initiated Creation**: Indexes are created via Azure Search Management API only when user clicks "Create Vector Database"
+- **Isolated Storage**: No shared indexes between jobs, ensuring data isolation and security
+
+#### **Azure-Exclusive Processing Pipeline**
+
+1. **Content Acquisition Phase**
+   - User initiates web scraping job through the interface
+   - Web scraping occurs using Celery background workers (asynchronous, non-blocking)
+   - Raw content is temporarily stored in PostgreSQL as job results
+   - No local file system or SQLite storage for scraped content
+
+2. **User-Initiated Vector Database Creation**
+   - User clicks "Create Vector Database" button after scraping job completes
+   - User selects which completed scraping job to process
+   - System begins asynchronous Azure AI Search index creation process (non-blocking)
+   - User interface remains responsive while vector database is being created
+   - Progress updates are provided via background polling
+
+3. **Azure AI Search Index Creation**
+   ```python
+   # User-initiated index creation for selected job
+   def create_vector_database_from_job(user_id: int, job_id: str):
+       # User has selected a completed scraping job to convert to vector database
+       index_name = f"usyd-rag-{user_id}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{job_id}"
+       
+       # Create Azure AI Search index with vector field configuration
+       index_schema = {
+           "fields": [
+               {"name": "id", "type": "Edm.String", "key": True},
+               {"name": "content", "type": "Edm.String", "searchable": True},
+               {"name": "title", "type": "Edm.String", "searchable": True},
+               {"name": "url", "type": "Edm.String", "retrievable": True},
+               {"name": "content_vector", "type": "Collection(Edm.Single)", 
+                "searchable": True, "vectorSearchDimensions": 1536},
+               {"name": "timestamp", "type": "Edm.DateTimeOffset", "filterable": True}
+           ],
+           "vectorSearch": {
+               "algorithms": [
+                   {"name": "vector-config", "kind": "hnsw"}
+               ]
+           }
+       }
+       
+       # Create index via Azure Search Management API
+       azure_search_client.create_index(index_name, index_schema)
+   ```
+
+4. **Embedding Generation and Storage**
+   - Text chunks from the selected job are processed asynchronously in background workers
+   - Embeddings are generated using Azure OpenAI's text-embedding-ada-002 model
+   - Both text content and vector embeddings are stored directly in the Azure AI Search index
+   - No local vector storage or caching
+   - Progress is tracked and reported to the user interface without blocking
+
+5. **User Selection of Vector Database and LLM Configuration**
+   - User chooses which vector database/Azure AI Search index to query
+   - User selects LLM model (GPT-4o or o3-mini)
+   - User configures hyperparameters (temperature, search type: semantic, keyword, hybrid)
+
+6. **Metadata Tracking**
+   - PostgreSQL stores job-to-index mapping and metadata
+   - Azure AI Search index name is stored for retrieval operations
+   - Document counts and processing status tracked in PostgreSQL
+
+#### **Search and Retrieval Operations**
+
+All search operations are performed exclusively within Azure AI Search:
+
+```python
+# Azure-only search implementation
+def search_job_content(index_name: str, query: str, search_type: str):
+    search_client = SearchClient(
+        endpoint=AZURE_SEARCH_ENDPOINT,
+        index_name=index_name,
+        credential=AzureKeyCredential(AZURE_SEARCH_KEY)
+    )
+    
+    if search_type == "semantic":
+        # Vector similarity search using Azure AI Search
+        query_vector = azure_openai_client.create_embedding(query)
+        results = search_client.search(
+            search_text=None,
+            vector_queries=[{
+                "vector": query_vector,
+                "fields": "content_vector",
+                "k": 10
+            }]
+        )
+    elif search_type == "keyword":
+        # Full-text search using Azure AI Search
+        results = search_client.search(search_text=query)
+    elif search_type == "hybrid":
+        # Combined vector and text search
+        query_vector = azure_openai_client.create_embedding(query)
+        results = search_client.search(
+            search_text=query,
+            vector_queries=[{
+                "vector": query_vector,
+                "fields": "content_vector",
+                "k": 10
+            }]
+        )
+    
+    return results
+```
+
+#### **Benefits of Azure-Only Architecture**
+
+1. **Enterprise Scalability**: Leverages Azure's global infrastructure for unlimited scaling
+2. **Zero Local Dependencies**: No SQLite, local file storage, or embedded vector databases
+3. **High Availability**: Built-in redundancy and disaster recovery through Azure
+4. **Security**: Enterprise-grade security and compliance through Azure services
+5. **Cost Efficiency**: Pay-per-use pricing model with automatic scaling
+6. **Maintenance-Free**: No local vector database maintenance or updates required
+
+#### **Index Lifecycle Management**
+
+- **Scraping Job Creation**: User-initiated through web interface (asynchronous execution)
+- **Job Completion**: Asynchronous processing, results stored in PostgreSQL, UI remains responsive
+- **Vector Database Creation**: User clicks "Create Vector Database" and selects a completed job (asynchronous execution)
+- **Index Population**: Real-time during user-initiated vector database creation (background processing)
+- **LLM Selection**: User chooses vector database and configures LLM parameters (immediate UI response)
+- **Usage**: Available for queries after user selects the vector database
+- **Cleanup**: Configurable retention policies for cost management
+- **Monitoring**: Azure AI Search metrics for performance tracking
+
+This user-controlled, Azure-exclusive approach ensures that users have complete control over each step while maintaining a responsive interface and the solution scales to enterprise requirements.
 
 ## User Interface Design
 
@@ -526,6 +749,14 @@ GET /api/chat/history/{session_id}
                         <div id="progress-fill"></div>
                     </div>
                     <p id="progress-text">Starting...</p>
+                </div>
+            </div>
+            
+            <!-- Completed Jobs Section -->
+            <div class="section completed-jobs-section">
+                <h2>Create Vector Databases</h2>
+                <div id="completed-jobs-list">
+                    <!-- Dynamically populated with completed scraping jobs -->
                 </div>
             </div>
             
@@ -603,8 +834,8 @@ body {
 
 .main-content {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 30px;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
     margin-top: 30px;
 }
 
@@ -659,6 +890,34 @@ body {
     margin-right: 20%;
 }
 
+.completed-job-item, .vector-db-item {
+    background: white;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.completed-job-item button, .vector-db-item button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+.completed-job-item button:hover, .vector-db-item button:hover {
+    background: #0056b3;
+}
+
+@media (max-width: 1200px) {
+    .main-content {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
 @media (max-width: 768px) {
     .main-content {
         grid-template-columns: 1fr;
@@ -678,6 +937,7 @@ class Dashboard {
     init() {
         this.bindEvents();
         this.loadVectorDatabases();
+        this.loadCompletedJobs();
         this.setupWebSocket();
     }
     
@@ -742,8 +1002,8 @@ class Dashboard {
                 progressText.textContent = status.message;
                 
                 if (status.status === 'completed') {
-                    progressText.textContent = 'Scraping completed! Building vector database...';
-                    this.loadVectorDatabases();
+                    progressText.textContent = 'Scraping completed! You can now create a vector database.';
+                    this.loadCompletedJobs(); // Load jobs available for vector database creation
                 } else if (status.status === 'failed') {
                     progressText.textContent = 'Scraping failed!';
                 } else {
@@ -755,6 +1015,90 @@ class Dashboard {
         };
         
         checkProgress();
+    }
+    
+    async loadCompletedJobs() {
+        try {
+            const response = await fetch('/api/scrape/completed-jobs');
+            const data = await response.json();
+            this.completedJobs = data.jobs;
+            this.renderCompletedJobs();
+        } catch (error) {
+            console.error('Failed to load completed jobs:', error);
+        }
+    }
+    
+    renderCompletedJobs() {
+        const container = document.getElementById('completed-jobs-list');
+        if (!container) return; // Container might not exist yet
+        
+        container.innerHTML = '<h3>Completed Scraping Jobs</h3>';
+        
+        this.completedJobs.forEach(job => {
+            const jobElement = document.createElement('div');
+            jobElement.className = 'completed-job-item';
+            jobElement.innerHTML = `
+                <h4>${job.url}</h4>
+                <p>Type: ${job.scraping_type}</p>
+                <p>Pages: ${job.result_summary?.pages_scraped || 0}</p>
+                <p>Completed: ${new Date(job.completed_at).toLocaleString()}</p>
+                <button onclick="dashboard.createVectorDatabase('${job.id}', '${job.url}')">
+                    Create Vector Database
+                </button>
+            `;
+            container.appendChild(jobElement);
+        });
+    }
+    
+    async createVectorDatabase(jobId, sourceUrl) {
+        const name = prompt(`Enter a name for this vector database (source: ${sourceUrl}):`);
+        if (!name) return;
+        
+        try {
+            // Initiate asynchronous vector database creation
+            const response = await fetch('/api/vector-dbs/create', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name: name,
+                    scraping_job_id: jobId
+                })
+            });
+            
+            const result = await response.json();
+            if (result.db_id) {
+                alert('Vector database creation started in background! The interface remains responsive while processing.');
+                this.loadVectorDatabases();
+                this.trackVectorDatabaseCreation(result.db_id);
+            }
+        } catch (error) {
+            console.error('Failed to create vector database:', error);
+            alert('Failed to create vector database');
+        }
+    }
+    
+    async trackVectorDatabaseCreation(dbId) {
+        // Non-blocking status checking via polling
+        const checkStatus = async () => {
+            try {
+                const response = await fetch(`/api/vector-dbs/${dbId}/status`);
+                const status = await response.json();
+                
+                if (status.status === 'ready') {
+                    this.loadVectorDatabases(); // Refresh the list
+                    alert('Vector database is ready for use!');
+                } else if (status.status === 'error') {
+                    alert('Vector database creation failed!');
+                } else {
+                    // Still building, check again in 5 seconds (non-blocking)
+                    setTimeout(checkStatus, 5000);
+                }
+            } catch (error) {
+                console.error('Failed to check vector database status:', error);
+            }
+        };
+        
+        checkStatus();
     }
     
     async loadVectorDatabases() {

@@ -83,7 +83,8 @@ class Dashboard {
     async loadInitialData() {
         await Promise.all([
             this.loadScrapingJobs(),
-            this.loadVectorDatabases()
+            this.loadVectorDatabases(),
+            this.loadCompletedJobs()
         ]);
     }
     
@@ -309,6 +310,57 @@ class Dashboard {
         `).join('');
     }
     
+    async loadCompletedJobs() {
+        try {
+            const response = await fetch('/api/scrape/completed-jobs');
+            const data = await response.json();
+            
+            if (response.ok) {
+                this.renderCompletedJobs(data.jobs);
+            }
+        } catch (error) {
+            console.error('Error loading completed jobs:', error);
+        }
+    }
+    
+    renderCompletedJobs(jobs) {
+        const container = document.getElementById('completed-jobs');
+        
+        // Filter out jobs that already have vector databases
+        const availableJobs = jobs.filter(job => !job.has_vector_db);
+        
+        if (availableJobs.length === 0) {
+            container.innerHTML = '<p class="text-secondary">No completed jobs available for vector database creation.</p>';
+            return;
+        }
+        
+        container.innerHTML = availableJobs.map(job => `
+            <div class="completed-job-item" data-job-id="${job.id}">
+                <div class="job-info">
+                    <div class="job-url">${job.url}</div>
+                    <div class="job-meta">
+                        <span class="job-type">${job.scraping_type}</span>
+                        <span class="job-date">${new Date(job.completed_at).toLocaleDateString()}</span>
+                        <span class="job-summary">${job.result_summary.total_pages || 0} pages</span>
+                    </div>
+                </div>
+                <div class="job-actions">
+                    <button class="create-vector-btn primary-btn" data-job-id="${job.id}" data-job-url="${job.url}">
+                        <i class="fas fa-database"></i>
+                        Create Vector Database
+                    </button>
+                </div>
+            </div>
+        `).join('');
+        
+        // Add event listeners for create vector database buttons
+        container.querySelectorAll('.create-vector-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                this.handleCreateVectorDBFromJob(e.target.dataset.jobId, e.target.dataset.jobUrl);
+            });
+        });
+    }
+    
     async showCreateVectorDBModal() {
         // Load completed scraping jobs for selection
         try {
@@ -368,6 +420,80 @@ class Dashboard {
             console.error('Error creating vector database:', error);
             this.showErrorMessage('An error occurred while creating the vector database');
         }
+    }
+    
+    async handleCreateVectorDBFromJob(jobId, jobUrl) {
+        // Prompt user for vector database name
+        const name = prompt(`Enter a name for the vector database from:\n${jobUrl}`, `Vector DB - ${new URL(jobUrl).hostname}`);
+        
+        if (!name) {
+            return; // User cancelled
+        }
+        
+        try {
+            const response = await fetch('/api/vector-dbs/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: name,
+                    scraping_job_id: jobId
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                this.showSuccessMessage('Vector database creation started! You can monitor progress in the Vector Databases section.');
+                
+                // Start tracking the progress
+                this.trackVectorDatabaseCreation(result.db_id);
+                
+                // Reload completed jobs and vector databases
+                setTimeout(() => {
+                    this.loadCompletedJobs();
+                    this.loadVectorDatabases();
+                }, 1000);
+            } else {
+                this.showErrorMessage(result.error || 'Failed to create vector database');
+            }
+        } catch (error) {
+            console.error('Error creating vector database:', error);
+            this.showErrorMessage('An error occurred while creating the vector database');
+        }
+    }
+    
+    trackVectorDatabaseCreation(dbId) {
+        // Poll for status updates every 5 seconds
+        const pollStatus = async () => {
+            try {
+                const response = await fetch(`/api/vector-dbs/${dbId}/status`);
+                const statusData = await response.json();
+                
+                if (response.ok) {
+                    // Update the UI to show progress
+                    const statusElement = document.querySelector(`[data-db-id="${dbId}"] .db-status`);
+                    if (statusElement) {
+                        statusElement.textContent = statusData.status;
+                        statusElement.className = `db-status status-${statusData.status}`;
+                    }
+                    
+                    // If still building, continue polling
+                    if (statusData.status === 'building') {
+                        setTimeout(pollStatus, 5000);
+                    } else {
+                        // Reload vector databases when complete
+                        this.loadVectorDatabases();
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking vector database status:', error);
+            }
+        };
+        
+        // Start polling
+        setTimeout(pollStatus, 2000);
     }
     
     async deleteVectorDatabase(dbId) {

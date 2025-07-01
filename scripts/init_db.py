@@ -58,13 +58,15 @@ def create_tables(cursor):
         CREATE TABLE IF NOT EXISTS vector_databases (
             id VARCHAR(36) PRIMARY KEY,
             user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            job_id VARCHAR(36) REFERENCES scraping_jobs(id) ON DELETE CASCADE,
             name VARCHAR(100) NOT NULL,
             source_url VARCHAR(2048) NOT NULL,
             azure_index_name VARCHAR(100) NOT NULL UNIQUE,
             document_count INTEGER DEFAULT 0,
             status VARCHAR(20) DEFAULT 'building' CHECK (status IN ('building', 'ready', 'error')),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, job_id)
         );
     """)
     logger.info("✓ Created vector_databases table")

@@ -616,3 +616,64 @@ class ScrapingService:
         except Exception as e:
             logger.error(f"Failed to delete scraping job {job_id}: {str(e)}")
             return False
+
+    def get_completed_jobs(self, user_id: int) -> List[Dict]:
+        """Get completed scraping jobs that are available for vector database creation"""
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor()
+            
+            if self.db_url.startswith("sqlite:"):
+                cursor.execute("""
+                    SELECT sj.id, sj.url, sj.scraping_type, sj.status, sj.created_at, sj.completed_at,
+                           sj.result_summary, vd.id as vector_db_id
+                    FROM scraping_jobs sj
+                    LEFT JOIN vector_databases vd ON sj.id = vd.job_id AND sj.user_id = vd.user_id
+                    WHERE sj.user_id = ? AND sj.status = 'completed'
+                    ORDER BY sj.completed_at DESC;
+                """, (user_id,))
+            else:
+                cursor.execute("""
+                    SELECT sj.id, sj.url, sj.scraping_type, sj.status, sj.created_at, sj.completed_at,
+                           sj.result_summary, vd.id as vector_db_id
+                    FROM scraping_jobs sj
+                    LEFT JOIN vector_databases vd ON sj.id = vd.job_id AND sj.user_id = vd.user_id
+                    WHERE sj.user_id = %s AND sj.status = 'completed'
+                    ORDER BY sj.completed_at DESC;
+                """, (user_id,))
+            
+            jobs = []
+            for row in cursor.fetchall():
+                if self.db_url.startswith("sqlite:"):
+                    job = {
+                        'id': row[0],
+                        'url': row[1],
+                        'scraping_type': row[2],
+                        'status': row[3],
+                        'created_at': row[4],
+                        'completed_at': row[5],
+                        'result_summary': json.loads(row[6]) if row[6] else {},
+                        'has_vector_db': row[7] is not None
+                    }
+                else:
+                    job = {
+                        'id': row[0],
+                        'url': row[1],
+                        'scraping_type': row[2],
+                        'status': row[3],
+                        'created_at': row[4].isoformat() if row[4] else None,
+                        'completed_at': row[5].isoformat() if row[5] else None,
+                        'result_summary': row[6] if row[6] else {},
+                        'has_vector_db': row[7] is not None
+                    }
+                jobs.append(job)
+            
+            cursor.close()
+            conn.close()
+            
+            logger.info(f"Retrieved {len(jobs)} completed jobs for user {user_id}")
+            return jobs
+            
+        except Exception as e:
+            logger.error(f"Failed to get completed jobs for user {user_id}: {str(e)}")
+            return []

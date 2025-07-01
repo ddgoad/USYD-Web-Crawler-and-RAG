@@ -295,6 +295,17 @@ def delete_scraping_job(job_id):
         logger.error(f"Error deleting scraping job: {str(e)}")
         return jsonify({"error": "Failed to delete scraping job"}), 500
 
+@app.route("/api/scrape/completed-jobs")
+@login_required
+def completed_scraping_jobs():
+    """Get completed scraping jobs available for vector database creation"""
+    try:
+        jobs = scraping_service.get_completed_jobs(current_user.id)
+        return jsonify({"jobs": jobs})
+    except Exception as e:
+        logger.error(f"Error getting completed scraping jobs: {str(e)}")
+        return jsonify({"error": "Failed to get completed jobs"}), 500
+
 @app.route("/api/vector-dbs")
 @login_required
 def vector_databases():
@@ -350,6 +361,20 @@ def delete_vector_database(db_id):
     except Exception as e:
         logger.error(f"Error deleting vector database: {str(e)}")
         return jsonify({"error": "Failed to delete vector database"}), 500
+
+@app.route("/api/vector-dbs/<db_id>/status")
+@login_required  
+def get_vector_database_status(db_id):
+    """Get vector database creation status for non-blocking polling"""
+    try:
+        status_info = vector_service.get_database_status(db_id, current_user.id)
+        if status_info:
+            return jsonify(status_info)
+        else:
+            return jsonify({"error": "Database not found or not authorized"}), 404
+    except Exception as e:
+        logger.error(f"Error getting vector database status: {str(e)}")
+        return jsonify({"error": "Failed to get database status"}), 500
 
 @app.route("/api/vector-dbs/<db_id>/search", methods=["POST"])
 @login_required

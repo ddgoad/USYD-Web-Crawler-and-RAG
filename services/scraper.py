@@ -31,7 +31,6 @@ class ScrapingService:
     def __init__(self):
         self.db_url = os.getenv("DATABASE_URL", "sqlite:///usydrag.db")
         self.db_path = self.db_url.replace("sqlite:///", "")
-        self.crawler = None
         self._init_database()
     
     def _get_db_connection(self):
@@ -96,13 +95,7 @@ class ScrapingService:
             logger.error(f"Scraping database initialization failed: {str(e)}")
             # Don't raise, as this shouldn't prevent the app from starting
     
-    async def _get_crawler(self):
-        """Get or create AsyncWebCrawler instance"""
-        if not self.crawler:
-            self.crawler = AsyncWebCrawler(verbose=True)
-            await self.crawler.astart()
-        return self.crawler
-    
+
     def create_scraping_job(self, user_id, url: str, 
                            scraping_type: str, config: Dict) -> str:
         """Create a new scraping job"""
@@ -276,26 +269,26 @@ class ScrapingService:
     async def scrape_single_page(self, url: str) -> Dict:
         """Scrape a single web page"""
         try:
-            crawler = await self._get_crawler()
-            
-            result = await crawler.arun(url=url)
-            
-            if result.success:
-                return {
-                    'success': True,
-                    'url': url,
-                    'title': result.metadata.get('title', ''),
-                    'content': result.markdown,
-                    'links': result.links,
-                    'media': result.media,
-                    'metadata': result.metadata
-                }
-            else:
-                return {
-                    'success': False,
-                    'url': url,
-                    'error': 'Failed to scrape page'
-                }
+            # Use context manager pattern for proper resource management
+            async with AsyncWebCrawler(verbose=True) as crawler:
+                result = await crawler.arun(url=url)
+                
+                if result.success:
+                    return {
+                        'success': True,
+                        'url': url,
+                        'title': result.metadata.get('title', ''),
+                        'content': result.markdown,
+                        'links': result.links,
+                        'media': result.media,
+                        'metadata': result.metadata
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'url': url,
+                        'error': 'Failed to scrape page'
+                    }
                 
         except Exception as e:
             logger.error(f"Failed to scrape single page {url}: {str(e)}")
@@ -312,44 +305,44 @@ class ScrapingService:
             to_scrape = [(url, 0)]  # (url, depth)
             results = []
             
-            crawler = await self._get_crawler()
-            
-            while to_scrape and len(scraped_urls) < max_pages:
-                current_url, depth = to_scrape.pop(0)
-                
-                if current_url in scraped_urls or depth > max_depth:
-                    continue
-                
-                scraped_urls.add(current_url)
-                
-                try:
-                    result = await crawler.arun(url=current_url)
+            # Use context manager pattern for proper resource management
+            async with AsyncWebCrawler(verbose=True) as crawler:
+                while to_scrape and len(scraped_urls) < max_pages:
+                    current_url, depth = to_scrape.pop(0)
                     
-                    if result.success:
-                        page_data = {
-                            'url': current_url,
-                            'title': result.metadata.get('title', ''),
-                            'content': result.markdown,
-                            'links': result.links,
-                            'media': result.media,
-                            'metadata': result.metadata,
-                            'depth': depth
-                        }
-                        results.append(page_data)
+                    if current_url in scraped_urls or depth > max_depth:
+                        continue
+                    
+                    scraped_urls.add(current_url)
+                    
+                    try:
+                        result = await crawler.arun(url=current_url)
                         
-                        # Add internal links for further crawling
-                        if depth < max_depth:
-                            base_domain = urlparse(url).netloc
-                            for link in result.links.get('internal', []):
-                                link_url = urljoin(current_url, link['href'])
-                                link_domain = urlparse(link_url).netloc
-                                
-                                if link_domain == base_domain and link_url not in scraped_urls:
-                                    to_scrape.append((link_url, depth + 1))
-                    
-                except Exception as e:
-                    logger.warning(f"Failed to scrape {current_url}: {str(e)}")
-                    continue
+                        if result.success:
+                            page_data = {
+                                'url': current_url,
+                                'title': result.metadata.get('title', ''),
+                                'content': result.markdown,
+                                'links': result.links,
+                                'media': result.media,
+                                'metadata': result.metadata,
+                                'depth': depth
+                            }
+                            results.append(page_data)
+                            
+                            # Add internal links for further crawling
+                            if depth < max_depth:
+                                base_domain = urlparse(url).netloc
+                                for link in result.links.get('internal', []):
+                                    link_url = urljoin(current_url, link['href'])
+                                    link_domain = urlparse(link_url).netloc
+                                    
+                                    if link_domain == base_domain and link_url not in scraped_urls:
+                                        to_scrape.append((link_url, depth + 1))
+                        
+                    except Exception as e:
+                        logger.warning(f"Failed to scrape {current_url}: {str(e)}")
+                        continue
             
             return {
                 'success': True,
@@ -398,26 +391,26 @@ class ScrapingService:
             
             # Scrape each URL
             results = []
-            crawler = await self._get_crawler()
-            
-            for url in urls:
-                try:
-                    result = await crawler.arun(url=url)
-                    
-                    if result.success:
-                        page_data = {
-                            'url': url,
-                            'title': result.metadata.get('title', ''),
-                            'content': result.markdown,
-                            'links': result.links,
-                            'media': result.media,
-                            'metadata': result.metadata
-                        }
-                        results.append(page_data)
-                    
-                except Exception as e:
-                    logger.warning(f"Failed to scrape {url}: {str(e)}")
-                    continue
+            # Use context manager pattern for proper resource management
+            async with AsyncWebCrawler(verbose=True) as crawler:
+                for url in urls:
+                    try:
+                        result = await crawler.arun(url=url)
+                        
+                        if result.success:
+                            page_data = {
+                                'url': url,
+                                'title': result.metadata.get('title', ''),
+                                'content': result.markdown,
+                                'links': result.links,
+                                'media': result.media,
+                                'metadata': result.metadata
+                            }
+                            results.append(page_data)
+                        
+                    except Exception as e:
+                        logger.warning(f"Failed to scrape {url}: {str(e)}")
+                        continue
             
             return {
                 'success': True,
@@ -439,13 +432,21 @@ def run_scraping_job_sync(job_id: str):
     """Synchronous wrapper for the scraping job that can be called by Celery"""
     async def process_job():
         try:
-            # Get job details
-            conn = psycopg2.connect(os.getenv("DATABASE_URL", "postgresql://localhost:5432/usydrag"))
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            # Create service instance to use proper database connection handling
+            service = ScrapingService()
             
-            cursor.execute("""
-                SELECT * FROM scraping_jobs WHERE id = %s;
-            """, (job_id,))
+            # Get job details using the service's database connection method
+            conn = service._get_db_connection()
+            cursor = conn.cursor()
+            
+            if service.db_url.startswith("sqlite:"):
+                cursor.execute("""
+                    SELECT * FROM scraping_jobs WHERE id = ?;
+                """, (job_id,))
+            else:
+                cursor.execute("""
+                    SELECT * FROM scraping_jobs WHERE id = %s;
+                """, (job_id,))
             
             job = cursor.fetchone()
             cursor.close()
@@ -454,30 +455,43 @@ def run_scraping_job_sync(job_id: str):
             if not job:
                 raise Exception(f"Job {job_id} not found")
             
-            # Create service instance
-            service = ScrapingService()
+            # Convert job to dict format
+            if service.db_url.startswith("sqlite:"):
+                job_dict = {
+                    'id': job[0],
+                    'user_id': job[1],
+                    'url': job[2],
+                    'scraping_type': job[3],
+                    'status': job[4],
+                    'config': job[5],
+                    'created_at': job[6],
+                    'completed_at': job[7],
+                    'result_summary': job[8]
+                }
+            else:
+                job_dict = dict(job)
             
             # Update status to running
             service._update_job_status(job_id, 'running', 10, 'Starting scraping process')
             
             # Run the appropriate scraping method
-            config = job['config'] if job['config'] else {}
+            config = json.loads(job_dict['config']) if job_dict['config'] else {}
             
             result = None
-            if job['scraping_type'] == 'single':
+            if job_dict['scraping_type'] == 'single':
                 service._update_job_status(job_id, 'running', 30, 'Scraping single page')
-                result = await service.scrape_single_page(job['url'])
-            elif job['scraping_type'] == 'deep':
+                result = await service.scrape_single_page(job_dict['url'])
+            elif job_dict['scraping_type'] == 'deep':
                 max_depth = config.get('max_depth', 3)
                 max_pages = config.get('max_pages', 50)
                 service._update_job_status(job_id, 'running', 30, f'Starting deep crawl (depth: {max_depth}, max pages: {max_pages})')
-                result = await service.scrape_website_deep(job['url'], max_depth, max_pages)
-            elif job['scraping_type'] == 'sitemap':
+                result = await service.scrape_website_deep(job_dict['url'], max_depth, max_pages)
+            elif job_dict['scraping_type'] == 'sitemap':
                 max_pages = config.get('max_pages', 100)
                 service._update_job_status(job_id, 'running', 30, f'Starting sitemap crawl (max pages: {max_pages})')
-                result = await service.scrape_from_sitemap(job['url'], max_pages)
+                result = await service.scrape_from_sitemap(job_dict['url'], max_pages)
             else:
-                raise Exception(f"Unknown scraping type: {job['scraping_type']}")
+                raise Exception(f"Unknown scraping type: {job_dict['scraping_type']}")
             
             if result['success']:
                 service._update_job_status(job_id, 'running', 80, 'Saving scraped data')

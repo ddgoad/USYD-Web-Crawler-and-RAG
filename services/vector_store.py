@@ -244,7 +244,7 @@ class VectorStoreService:
             conn.close()
             
             # Process scraped data immediately
-            self.process_vector_database_creation(db_id, scraping_job_id)
+            self._process_scraped_data_async(db_id, scraping_job_id)
             
             logger.info(f"Created vector database {db_id} for user {user_id}")
             return db_id

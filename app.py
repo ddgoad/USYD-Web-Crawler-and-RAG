@@ -182,8 +182,15 @@ def logout():
 def dashboard():
     """Main dashboard page"""
     # Get user's scraping jobs and vector databases
-    scraping_jobs = auth_service.get_user_scraping_jobs(current_user.id)
-    vector_dbs = auth_service.get_user_vector_databases(current_user.id)
+    try:
+        scraping_jobs = auth_service.get_user_scraping_jobs(current_user.id)
+    except:
+        scraping_jobs = []  # Fallback to empty list if error
+    
+    try:
+        vector_dbs = auth_service.get_user_vector_databases(current_user.id)
+    except:
+        vector_dbs = []  # Fallback to empty list if error
     
     return render_template("dashboard.html", 
                          scraping_jobs=scraping_jobs, 
@@ -232,7 +239,8 @@ def start_scraping():
             try:
                 flush_print(f"=== [THREAD] Starting background thread for job {job_id} ===")
                 logger.info(f"[THREAD] Starting background thread for job {job_id}")
-                scraping_service.process_scraping_job_sync(job_id)
+                from services.scraper import run_scraping_job_sync
+                run_scraping_job_sync(job_id)
                 logger.info(f"[THREAD] Background thread completed for job {job_id}")
                 flush_print(f"=== [THREAD] Background thread completed for job {job_id} ===")
             except Exception as e:

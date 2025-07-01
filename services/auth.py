@@ -44,7 +44,10 @@ class AuthService:
             cursor = conn.cursor()
             
             # Drop existing users table to fix schema inconsistency
-            cursor.execute("DROP TABLE IF EXISTS users CASCADE")
+            if self.db_url.startswith("sqlite:"):
+                cursor.execute("DROP TABLE IF EXISTS users")
+            else:
+                cursor.execute("DROP TABLE IF EXISTS users CASCADE")
             
             # Create users table - handle both SQLite and PostgreSQL
             if self.db_url.startswith("sqlite:"):
@@ -197,9 +200,8 @@ class AuthService:
                     conn.commit()
                     
                     user = User(
-                        user_id=user_dict['id'],
+                        id=user_dict['id'],
                         username=user_dict['username'],
-                        password_hash=user_dict['password_hash'],
                         created_at=user_dict['created_at'],
                         last_login=datetime.utcnow()
                     )
@@ -251,9 +253,8 @@ class AuthService:
                     user_dict = dict(user_data)
                 
                 user = User(
-                    user_id=user_dict['id'],
+                    id=user_dict['id'],
                     username=user_dict['username'],
-                    password_hash=user_dict['password_hash'],
                     created_at=user_dict['created_at'],
                     last_login=user_dict['last_login']
                 )

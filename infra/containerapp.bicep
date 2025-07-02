@@ -7,12 +7,12 @@ param azureOpenAIEndpoint string
 @secure()
 param azureOpenAIKey string
 param azureSearchEndpoint string
-@secure()
-param azureSearchKey string
+param azureSearchName string
 @secure()
 param databaseUrl string
-@secure()
-param redisUrl string
+param redisName string
+param redisHostName string
+param redisPort string
 @secure()
 param secretKey string
 param userAssignedIdentityId string
@@ -23,6 +23,16 @@ param tags object = {}
 // Get storage account key directly within this module
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
   name: storageAccountName
+}
+
+// Reference to existing search service
+resource searchService 'Microsoft.Search/searchServices@2023-11-01' existing = {
+  name: azureSearchName
+}
+
+// Reference to existing redis cache
+resource redisCache 'Microsoft.Cache/redis@2023-08-01' existing = {
+  name: redisName
 }
 
 resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
@@ -70,7 +80,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
         }
         {
           name: 'azure-search-key'
-          value: azureSearchKey
+          value: searchService.listAdminKeys().primaryKey
         }
         {
           name: 'database-url'
@@ -78,7 +88,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
         }
         {
           name: 'redis-url'  
-          value: redisUrl
+          value: 'rediss://:${redisCache.listKeys().primaryKey}@${redisHostName}:${redisPort}/0'
         }
         {
           name: 'secret-key'

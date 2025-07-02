@@ -25,3 +25,5 @@ resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
 
 output redisHostName string = redisCache.properties.hostName
 output redisPort string = string(redisCache.properties.sslPort)
+output redisId string = redisCache.id
+output redisName string = redisCache.name

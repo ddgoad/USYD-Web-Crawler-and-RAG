@@ -78,13 +78,24 @@ class Dashboard {
                 this.deleteScrapingJob(jobId);
             }
         });
+        
+        // Cleanup databases button
+        document.getElementById('cleanup-dbs-btn')?.addEventListener('click', () => {
+            this.cleanupUnusedIndexes();
+        });
+        
+        // Refresh stats button
+        document.getElementById('refresh-stats-btn')?.addEventListener('click', () => {
+            this.loadVectorDatabaseStats();
+        });
     }
     
     async loadInitialData() {
         await Promise.all([
             this.loadScrapingJobs(),
             this.loadVectorDatabases(),
-            this.loadCompletedJobs()
+            this.loadCompletedJobs(),
+            this.loadVectorDatabaseStats()
         ]);
     }
     
@@ -394,6 +405,26 @@ class Dashboard {
         };
         
         try {
+            // Check stats first to warn user if quota is low
+            const statsResponse = await fetch('/api/vector-dbs/stats');
+            const stats = await statsResponse.json();
+            
+            if (statsResponse.ok && stats.indexes_available <= 0) {
+                const shouldCleanup = confirm(
+                    'Index quota exceeded! Would you like to cleanup unused indexes first?'
+                );
+                if (shouldCleanup) {
+                    await this.cleanupUnusedIndexes();
+                    // Refresh stats after cleanup
+                    const newStatsResponse = await fetch('/api/vector-dbs/stats');
+                    const newStats = await newStatsResponse.json();
+                    if (newStatsResponse.ok && newStats.indexes_available <= 0) {
+                        this.showErrorMessage('Still no indexes available after cleanup. Please delete some vector databases manually.');
+                        return;
+                    }
+                }
+            }
+            
             const response = await fetch('/api/vector-dbs/create', {
                 method: 'POST',
                 headers: {
@@ -409,12 +440,18 @@ class Dashboard {
                 this.closeModal('create-db-modal');
                 e.target.reset();
                 
-                // Reload vector databases
+                // Reload vector databases and stats
                 setTimeout(() => {
                     this.loadVectorDatabases();
+                    this.loadVectorDatabaseStats();
                 }, 1000);
             } else {
-                this.showErrorMessage(result.error || 'Failed to create vector database');
+                // Handle specific error messages
+                let errorMessage = result.error || 'Failed to create vector database';
+                if (errorMessage.includes('quota') || errorMessage.includes('exceeded')) {
+                    errorMessage += ' Try cleaning up unused databases first.';
+                }
+                this.showErrorMessage(errorMessage);
             }
         } catch (error) {
             console.error('Error creating vector database:', error);
@@ -710,6 +747,10 @@ class Dashboard {
         document.getElementById(modalId).style.display = 'none';
     }
     
+    showProgressMessage(message) {
+        this.showToast(message, 'info');
+    }
+    
     showSuccessMessage(message) {
         this.showToast(message, 'success');
     }
@@ -779,6 +820,104 @@ class Dashboard {
         
         messagesContainer.appendChild(messageDiv);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    async cleanupUnusedIndexes() {
+        if (!confirm('This will clean up unused search indexes. Are you sure?')) {
+            return;
+        }
+        
+        try {
+            this.showProgressMessage('Cleaning up unused indexes...');
+            
+            const response = await fetch('/api/vector-dbs/cleanup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                this.showSuccessMessage(
+                    `Cleanup completed! Deleted ${result.deleted_count} unused indexes. ` +
+                    `Found ${result.orphaned_found} orphaned indexes total.`
+                );
+                // Refresh the stats and vector database list
+                this.loadVectorDatabaseStats();
+                this.loadVectorDatabases();
+            } else {
+                this.showErrorMessage(result.error || 'Failed to cleanup indexes');
+            }
+        } catch (error) {
+            console.error('Error during cleanup:', error);
+            this.showErrorMessage('An error occurred during cleanup');
+        }
+    }
+    
+    async loadVectorDatabaseStats() {
+        try {
+            const response = await fetch('/api/vector-dbs/stats');
+            const stats = await response.json();
+            
+            if (response.ok) {
+                this.displayVectorDatabaseStats(stats);
+            } else {
+                console.error('Failed to load stats:', stats.error);
+            }
+        } catch (error) {
+            console.error('Error loading stats:', error);
+        }
+    }
+    
+    displayVectorDatabaseStats(stats) {
+        const statsContainer = document.getElementById('vector-db-stats');
+        if (!statsContainer) return;
+        
+        const availableColor = stats.indexes_available > 5 ? 'text-success' : 
+                              stats.indexes_available > 2 ? 'text-warning' : 'text-danger';
+        
+        statsContainer.innerHTML = `
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title">${stats.azure_index_count}</h5>
+                            <p class="card-text">Indexes Used</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title ${availableColor}">${stats.indexes_available}</h5>
+                            <p class="card-text">Available</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title">${stats.active_databases}</h5>
+                            <p class="card-text">Active DBs</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title">${stats.error_databases}</h5>
+                            <p class="card-text">Error DBs</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            ${stats.indexes_available <= 2 ? 
+                '<div class="alert alert-warning mt-2">' +
+                '<strong>Warning:</strong> Low index quota! Consider cleaning up unused databases.' +
+                '</div>' : ''}
+        `;
     }
 }
 

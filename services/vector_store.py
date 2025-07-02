@@ -161,27 +161,189 @@ class VectorStoreService:
             logger.error(f"Failed to generate embeddings: {str(e)}")
             raise
     
-    def _create_search_index(self, index_name: str) -> bool:
-        """Create Azure AI Search index"""
+    def list_search_indexes(self) -> List[Dict]:
+        """List all Azure Search indexes"""
         try:
+            indexes = self.index_client.list_indexes()
+            return [{"name": index.name, "fields_count": len(index.fields)}
+                    for index in indexes]
+        except Exception as e:
+            logger.error(f"Failed to list search indexes: {str(e)}")
+            return []
+    
+    def cleanup_unused_indexes(self, user_id: int = None) -> Dict:
+        """Clean up unused Azure Search indexes"""
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            
+            # Get all indexes from Azure Search
+            all_indexes = self.index_client.list_indexes()
+            azure_index_names = {index.name for index in all_indexes}
+            
+            # Get all index names from database
+            if user_id:
+                cursor.execute("""
+                    SELECT azure_index_name FROM vector_databases
+                    WHERE user_id = %s;
+                """, (user_id,))
+            else:
+                cursor.execute(
+                    "SELECT azure_index_name FROM vector_databases;"
+                )
+
+            db_index_names = {row['azure_index_name']
+                              for row in cursor.fetchall()}
+            
+            # Find orphaned indexes (exists in Azure but not in database)
+            orphaned_indexes = azure_index_names - db_index_names
+            
+            # Delete orphaned indexes
+            deleted_count = 0
+            failed_deletions = []
+            
+            for index_name in orphaned_indexes:
+                # Only delete indexes that match our naming pattern
+                if index_name.startswith('usyd-rag-'):
+                    try:
+                        self.index_client.delete_index(index_name)
+                        deleted_count += 1
+                        logger.info(f"Deleted orphaned index: {index_name}")
+                    except Exception as e:
+                        failed_deletions.append(index_name)
+                        logger.error(
+                            f"Failed to delete orphaned index "
+                            f"{index_name}: {str(e)}"
+                        )
+            
+            cursor.close()
+            conn.close()
+            
+            result = {
+                "total_indexes": len(azure_index_names),
+                "orphaned_found": len(orphaned_indexes),
+                "deleted_count": deleted_count,
+                "failed_deletions": failed_deletions
+            }
+            
+            logger.info(f"Cleanup results: {result}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to cleanup unused indexes: {str(e)}")
+            return {
+                "total_indexes": 0,
+                "orphaned_found": 0,
+                "deleted_count": 0,
+                "failed_deletions": [],
+                "error": str(e)
+            }
+
+    def get_index_usage_stats(self) -> Dict:
+        """Get statistics about index usage"""
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            
+            # Get all indexes from Azure Search
+            all_indexes = self.index_client.list_indexes()
+            azure_index_count = len(list(all_indexes))
+            
+            # Get database stats
+            cursor.execute(
+                "SELECT COUNT(*) as total_dbs FROM vector_databases;"
+            )
+            total_dbs = cursor.fetchone()['total_dbs']
+
+            cursor.execute(
+                "SELECT COUNT(*) as active_dbs FROM vector_databases "
+                "WHERE status = 'ready';"
+            )
+            active_dbs = cursor.fetchone()['active_dbs']
+
+            cursor.execute(
+                "SELECT COUNT(*) as building_dbs FROM vector_databases "
+                "WHERE status = 'building';"
+            )
+            building_dbs = cursor.fetchone()['building_dbs']
+
+            cursor.execute(
+                "SELECT COUNT(*) as error_dbs FROM vector_databases "
+                "WHERE status = 'error';"
+            )
+            error_dbs = cursor.fetchone()['error_dbs']
+            
+            cursor.close()
+            conn.close()
+            
+            return {
+                "azure_index_count": azure_index_count,
+                "azure_index_limit": 15,  # Free tier limit
+                "total_databases": total_dbs,
+                "active_databases": active_dbs,
+                "building_databases": building_dbs,
+                "error_databases": error_dbs,
+                "indexes_available": 15 - azure_index_count
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get index usage stats: {str(e)}")
+            return {
+                "azure_index_count": 0,
+                "azure_index_limit": 15,
+                "total_databases": 0,
+                "active_databases": 0,
+                "building_databases": 0,
+                "error_databases": 0,
+                "indexes_available": 0,
+                "error": str(e)
+            }
+
+    def _create_search_index(self, index_name: str) -> bool:
+        """Create Azure AI Search index with improved error handling"""
+        try:
+            # Check if we've exceeded the index quota before creating
+            stats = self.get_index_usage_stats()
+            if stats.get('indexes_available', 0) <= 0:
+                logger.warning("Index quota exceeded. Attempting cleanup...")
+                cleanup_result = self.cleanup_unused_indexes()
+                logger.info(f"Cleanup result: {cleanup_result}")
+                
+                # Recheck after cleanup
+                stats = self.get_index_usage_stats()
+                if stats.get('indexes_available', 0) <= 0:
+                    raise Exception(
+                        "Index quota exceeded and cleanup did not free "
+                        "enough space. Please delete unused vector "
+                        "databases manually."
+                    )
+
             # Define the search index schema
             fields = [
-                SimpleField(name="id", type=SearchFieldDataType.String, key=True),
-                SearchField(name="content", type=SearchFieldDataType.String, searchable=True),
-                SearchField(name="title", type=SearchFieldDataType.String, searchable=True, filterable=True),
-                SearchField(name="url", type=SearchFieldDataType.String, filterable=True),
-                SearchField(name="chunk_index", type=SearchFieldDataType.Int32, filterable=True),
-                SearchField(name="source_type", type=SearchFieldDataType.String, filterable=True),
-                SearchField(name="metadata", type=SearchFieldDataType.String, searchable=True),
+                SimpleField(name="id", type=SearchFieldDataType.String,
+                           key=True),
+                SearchField(name="content", type=SearchFieldDataType.String,
+                           searchable=True),
+                SearchField(name="title", type=SearchFieldDataType.String,
+                           searchable=True, filterable=True),
+                SearchField(name="url", type=SearchFieldDataType.String,
+                           filterable=True),
+                SearchField(name="chunk_index",
+                           type=SearchFieldDataType.Int32, filterable=True),
+                SearchField(name="source_type",
+                           type=SearchFieldDataType.String, filterable=True),
+                SearchField(name="metadata", type=SearchFieldDataType.String,
+                           searchable=True),
                 SearchField(
                     name="content_vector",
-                    type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
+                    type=SearchFieldDataType.Collection(
+                        SearchFieldDataType.Single),
                     searchable=True,
-                    vector_search_dimensions=1536,  # text-embedding-3-small dimension
+                    vector_search_dimensions=1536,
                     vector_search_profile_name="default-vector-profile"
                 ),
             ]
-            
+
             # Configure vector search
             vector_search = VectorSearch(
                 algorithms=[
@@ -203,20 +365,26 @@ class VectorStoreService:
                     )
                 ]
             )
-            
+
             # Create the search index
             index = SearchIndex(
                 name=index_name,
                 fields=fields,
                 vector_search=vector_search
             )
-            
+
             self.index_client.create_index(index)
             logger.info(f"Created search index: {index_name}")
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to create search index {index_name}: {str(e)}")
+            error_msg = str(e)
+            if "quota" in error_msg.lower() or "exceeded" in error_msg.lower():
+                logger.error(f"Index quota exceeded when creating "
+                           f"{index_name}: {error_msg}")
+            else:
+                logger.error(f"Failed to create search index "
+                           f"{index_name}: {error_msg}")
             return False
     
     def create_database(self, user_id: int, name: str, scraping_job_id: str) -> str:
@@ -536,8 +704,9 @@ class VectorStoreService:
             
             # Delete Azure Search index
             try:
-                self.index_client.delete_index(db_record['index_name'])
-                logger.info(f"Deleted Azure Search index: {db_record['index_name']}")
+                index_name = db_record['azure_index_name']
+                self.index_client.delete_index(index_name)
+                logger.info(f"Deleted Azure Search index: {index_name}")
             except Exception as e:
                 logger.warning(f"Failed to delete Azure Search index: {str(e)}")
             
@@ -576,7 +745,7 @@ class VectorStoreService:
             if not db_record:
                 raise Exception("Vector database not found or not ready")
             
-            azure_index_name = db_record['index_name']
+            azure_index_name = db_record['azure_index_name']
             
             # Create search client
             search_client = SearchClient(

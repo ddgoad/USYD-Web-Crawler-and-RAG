@@ -19,7 +19,6 @@ from services.auth import AuthService
 from services.scraper import ScrapingService
 from services.vector_store import VectorStoreService
 from services.llm_service import LLMService
-from services.document_processor import document_processor
 from models.user import User
 
 # Configure logging
@@ -38,6 +37,16 @@ logging.basicConfig(
     force=True
 )
 logger = logging.getLogger(__name__)
+
+# Import document processor after logger is configured
+try:
+    from services.document_processor import document_processor
+    DOCUMENT_UPLOAD_ENABLED = True
+    logger.info("✓ Document processor initialized successfully")
+except Exception as e:
+    logger.warning(f"Document processor not available: {e}")
+    document_processor = None
+    DOCUMENT_UPLOAD_ENABLED = False
 
 
 def flush_print(*args, **kwargs):
@@ -497,6 +506,13 @@ def chat_history(session_id):
 @login_required
 def upload_documents():
     """Upload and process documents for vector database creation"""
+    
+    # Check if document processor is available
+    if not DOCUMENT_UPLOAD_ENABLED or document_processor is None:
+        return jsonify({
+            "error": "Document upload not available - Azure Storage not configured"
+        }), 503
+        
     try:
         if 'documents' not in request.files:
             return jsonify({"error": "No documents provided"}), 400
@@ -586,6 +602,12 @@ def upload_documents():
 @login_required
 def get_document_jobs():
     """Get all document jobs for the current user"""
+    if not DOCUMENT_UPLOAD_ENABLED:
+        return jsonify({
+            "jobs": [],
+            "message": "Document upload not available"
+        })
+        
     try:
         jobs = document_processor.get_user_document_jobs(current_user.id)
         return jsonify({"jobs": jobs})
@@ -608,8 +630,14 @@ def create_hybrid_vector_database():
         if not name:
             return jsonify({"error": "Database name is required"}), 400
         
+        # If document upload is disabled, ignore document job IDs
+        if not DOCUMENT_UPLOAD_ENABLED:
+            document_job_ids = []
+        
         if not scraping_job_id and not document_job_ids:
-            return jsonify({"error": "At least one source (scraping job or document jobs) is required"}), 400
+            error_msg = ("At least one source (scraping job or document jobs) "
+                         "is required")
+            return jsonify({"error": error_msg}), 400
         
         db_id = vector_service.create_database_from_hybrid_sources(
             user_id=current_user.id,

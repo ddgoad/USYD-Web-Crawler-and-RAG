@@ -46,16 +46,34 @@ class DocumentProcessingService:
         """Initialize the document processing service with Azure Blob Storage"""
         self.db_url = os.getenv("DATABASE_URL", "postgresql://localhost:5432/usydrag")
         
-        self.blob_service_client = BlobServiceClient(
-            account_url=os.getenv("AZURE_STORAGE_ACCOUNT_URL"),
-            credential=os.getenv("AZURE_STORAGE_KEY")
-        )
+        # Check if Azure Storage is configured
+        storage_account_url = os.getenv("AZURE_STORAGE_ACCOUNT_URL")
+        storage_key = os.getenv("AZURE_STORAGE_KEY")
+        
+        if storage_account_url and storage_key:
+            try:
+                self.blob_service_client = BlobServiceClient(
+                    account_url=storage_account_url,
+                    credential=storage_key
+                )
+                self.storage_enabled = True
+                logger.info("Azure Blob Storage initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Azure Blob Storage: {e}")
+                self.blob_service_client = None
+                self.storage_enabled = False
+        else:
+            logger.warning("Azure Storage not configured - document upload disabled")
+            self.blob_service_client = None
+            self.storage_enabled = False
+            
         self.container_name = "user-documents"
         self.max_file_size = 50 * 1024 * 1024  # 50MB
         self.allowed_extensions = ['.pdf', '.docx', '.md']
         
-        # Ensure container exists
-        self._ensure_container_exists()
+        # Ensure container exists only if storage is enabled
+        if self.storage_enabled:
+            self._ensure_container_exists()
     
     def _get_db_connection(self):
         """Get database connection"""
@@ -138,6 +156,10 @@ class DocumentProcessingService:
         Returns:
             Blob name for the uploaded file
         """
+        if not self.storage_enabled:
+            raise Exception("Document upload not available - "
+                            "Azure Storage not configured")
+            
         try:
             # Create unique blob name
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -673,5 +695,18 @@ class DocumentProcessingService:
             return []
 
 
-# Create singleton instance
-document_processor = DocumentProcessingService()
+# Create singleton instance (lazy initialization)
+_document_processor_instance = None
+
+
+def get_document_processor():
+    """Get singleton instance of DocumentProcessingService with
+    lazy initialization"""
+    global _document_processor_instance
+    if _document_processor_instance is None:
+        _document_processor_instance = DocumentProcessingService()
+    return _document_processor_instance
+
+
+# For backward compatibility
+document_processor = None

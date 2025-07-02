@@ -360,7 +360,7 @@ class AuthService:
             
             if self.db_url.startswith("sqlite:"):
                 cursor.execute("""
-                    SELECT id, name, source_url, index_name,
+                    SELECT id, name, source_url, azure_index_name,
                            document_count, status, created_at
                     FROM vector_databases 
                     WHERE user_id = ?
@@ -368,7 +368,7 @@ class AuthService:
                 """, (user_id,))
             else:
                 cursor.execute("""
-                    SELECT id, name, source_url, index_name,
+                    SELECT id, name, source_url, azure_index_name,
                            document_count, status, created_at
                     FROM vector_databases 
                     WHERE user_id = %s

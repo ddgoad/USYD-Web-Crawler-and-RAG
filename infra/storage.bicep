@@ -37,3 +37,4 @@ resource fileShare 'Microsoft.Storage/storageAccounts/fileServices/shares@2023-0
 output storageAccountName string = storageAccount.name
 output fileShareName string = fileShare.name
 output storageAccountId string = storageAccount.id
+output storageAccountUrl string = storageAccount.properties.primaryEndpoints.blob

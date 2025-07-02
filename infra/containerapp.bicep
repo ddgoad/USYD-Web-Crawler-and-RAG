@@ -158,6 +158,14 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
               name: 'PORT'
               value: '5000'
             }
+            {
+              name: 'AZURE_STORAGE_ACCOUNT_URL'
+              value: storageAccount.properties.primaryEndpoints.blob
+            }
+            {
+              name: 'AZURE_STORAGE_KEY'
+              secretRef: 'storage-account-key'
+            }
           ]
           volumeMounts: [
             {

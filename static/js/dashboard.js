@@ -94,7 +94,6 @@ class Dashboard {
         await Promise.all([
             this.loadScrapingJobs(),
             this.loadVectorDatabases(),
-            this.loadCompletedJobs(),
             this.loadVectorDatabaseStats()
         ]);
     }
@@ -321,57 +320,6 @@ class Dashboard {
         `).join('');
     }
     
-    async loadCompletedJobs() {
-        try {
-            const response = await fetch('/api/scrape/completed-jobs');
-            const data = await response.json();
-            
-            if (response.ok) {
-                this.renderCompletedJobs(data.jobs);
-            }
-        } catch (error) {
-            console.error('Error loading completed jobs:', error);
-        }
-    }
-    
-    renderCompletedJobs(jobs) {
-        const container = document.getElementById('completed-jobs');
-        
-        // Filter out jobs that already have vector databases
-        const availableJobs = jobs.filter(job => !job.has_vector_db);
-        
-        if (availableJobs.length === 0) {
-            container.innerHTML = '<p class="text-secondary">No completed jobs available for vector database creation.</p>';
-            return;
-        }
-        
-        container.innerHTML = availableJobs.map(job => `
-            <div class="completed-job-item" data-job-id="${job.id}">
-                <div class="job-info">
-                    <div class="job-url">${job.url}</div>
-                    <div class="job-meta">
-                        <span class="job-type">${job.scraping_type}</span>
-                        <span class="job-date">${new Date(job.completed_at).toLocaleDateString()}</span>
-                        <span class="job-summary">${job.result_summary.total_pages || 0} pages</span>
-                    </div>
-                </div>
-                <div class="job-actions">
-                    <button class="create-vector-btn primary-btn" data-job-id="${job.id}" data-job-url="${job.url}">
-                        <i class="fas fa-database"></i>
-                        Create Vector Database
-                    </button>
-                </div>
-            </div>
-        `).join('');
-        
-        // Add event listeners for create vector database buttons
-        container.querySelectorAll('.create-vector-btn').forEach(button => {
-            button.addEventListener('click', (e) => {
-                this.handleCreateVectorDBFromJob(e.target.dataset.jobId, e.target.dataset.jobUrl);
-            });
-        });
-    }
-    
     async showCreateVectorDBModal() {
         // Load completed scraping jobs for selection
         try {
@@ -487,9 +435,8 @@ class Dashboard {
                 // Start tracking the progress
                 this.trackVectorDatabaseCreation(result.db_id);
                 
-                // Reload completed jobs and vector databases
+                // Reload vector databases
                 setTimeout(() => {
-                    this.loadCompletedJobs();
                     this.loadVectorDatabases();
                 }, 1000);
             } else {
@@ -879,38 +826,22 @@ class Dashboard {
                               stats.indexes_available > 2 ? 'text-warning' : 'text-danger';
         
         statsContainer.innerHTML = `
-            <div class="row">
-                <div class="col-md-3">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <h5 class="card-title">${stats.azure_index_count}</h5>
-                            <p class="card-text">Indexes Used</p>
-                        </div>
-                    </div>
+            <div class="stats-row">
+                <div class="stat-item">
+                    <span class="stat-value">${stats.azure_index_count}</span>
+                    <span class="stat-label">Indexes Used</span>
                 </div>
-                <div class="col-md-3">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <h5 class="card-title ${availableColor}">${stats.indexes_available}</h5>
-                            <p class="card-text">Available</p>
-                        </div>
-                    </div>
+                <div class="stat-item">
+                    <span class="stat-value ${availableColor}">${stats.indexes_available}</span>
+                    <span class="stat-label">Available</span>
                 </div>
-                <div class="col-md-3">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <h5 class="card-title">${stats.active_databases}</h5>
-                            <p class="card-text">Active DBs</p>
-                        </div>
-                    </div>
+                <div class="stat-item">
+                    <span class="stat-value">${stats.active_databases}</span>
+                    <span class="stat-label">Active DBs</span>
                 </div>
-                <div class="col-md-3">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <h5 class="card-title">${stats.error_databases}</h5>
-                            <p class="card-text">Error DBs</p>
-                        </div>
-                    </div>
+                <div class="stat-item">
+                    <span class="stat-value">${stats.error_databases}</span>
+                    <span class="stat-label">Error DBs</span>
                 </div>
             </div>
             ${stats.indexes_available <= 2 ? 

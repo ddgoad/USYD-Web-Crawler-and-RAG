@@ -100,15 +100,6 @@
                             {% endfor %}
                         </div>
                     </div>
-                    
-                    <!-- Completed Jobs for Vector Database Creation -->
-                    <div class="section">
-                        <h3>Create Vector Database</h3>
-                        <p class="section-description">Select a completed scraping job to create a vector database:</p>
-                        <div id="completed-jobs" class="completed-jobs-list">
-                            <!-- Completed jobs will be loaded here -->
-                        </div>
-                    </div>
                 </div>
             </div>
             
@@ -176,7 +167,7 @@
                     <div class="section" id="chat-section" style="display: none;">
                         <div class="chat-header">
                             <h3>AI Chat</h3>
-                            <div class="chat-controls">
+                            <div class="chat-controls" style="margin-top: 1rem;">
                                 <div class="control-group">
                                     <label for="model-select">AI Model:</label>
                                     <select id="model-select" title="Choose the AI model for chat responses">

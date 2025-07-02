@@ -28,6 +28,9 @@ The USYD Web Crawler and RAG (Retrieval-Augmented Generation) solution is a web 
 - **Progress Tracking**: Real-time feedback on scraping and vectorization processes
 - **Multi-Model Support**: GPT-4o and o3-mini model options
 - **Flexible Search**: Keyword, semantic, and hybrid search capabilities
+- **Document Upload**: Support for PDF, Word, and Markdown file uploads
+- **Hybrid Content Sources**: Combine web scraped content with uploaded documents
+- **Document Processing Pipeline**: Automatic conversion and integration of various file formats
 
 ## Solution Architecture Overview
 
@@ -40,9 +43,9 @@ The user interface is built as a modern, responsive web application using Flask 
 
 1. **Web Scraping Control Panel**: This section allows users to configure and initiate web scraping operations. Users can specify the target URL, choose scraping modes (single page, deep crawl, or sitemap-based), and set parameters like crawl depth and page limits. When a scraping job is initiated, the interface provides real-time progress feedback through WebSocket connections, showing users exactly what's happening as their content is being processed. Once scraping completes, users can see their completed jobs and manually choose to create vector databases from them.
 
-2. **Vector Database Management**: After scraping jobs complete, users can click "Create Vector Database" and select which completed scraping job to process. This initiates the creation of a dedicated Azure AI Search index. Users can monitor the progress of vector database creation and see when indexes are ready for use.
+2. **Vector Database Management**: After scraping jobs complete, users can click "Create Vector Database" and select which completed scraping job to process. This initiates the creation of a dedicated Azure AI Search index. Users can monitor the progress of vector database creation and see when indexes are ready for use. **Enhanced with Document Upload**: Users can now also upload supplementary documents (PDF, Word, Markdown) during vector database creation to enrich the content beyond just scraped web pages.
 
-3. **Chat Interface**: Once vector databases are ready, users can select a specific database and interact with it through an AI-powered chat interface. The interface allows users to choose between different AI models (GPT-4o or o3-mini), adjust search parameters (semantic, keyword, or hybrid search), and modify AI behavior settings like temperature before beginning their query session.
+3. **Chat Interface**: Once vector databases are ready, users can select a specific database and interact with it through an AI-powered chat interface. The interface allows users to choose between different AI models (GPT-4o or o3-mini), adjust search parameters (semantic, keyword, or hybrid search), and modify AI behavior settings like temperature before beginning their query session. The AI can now answer questions using both scraped web content and uploaded documents seamlessly.
 
 #### **Backend API Layer - Business Logic**
 The Flask-based backend serves as the orchestration layer that coordinates all system components. It handles user authentication, manages scraping jobs, interfaces with Azure services, and provides RESTful API endpoints for the frontend. The backend is designed to be stateless and scalable, with session management handled through Redis for high availability.
@@ -63,6 +66,33 @@ Once content is scraped, it goes through a sophisticated processing pipeline:
 2. **Text Chunking**: Large documents are intelligently split into smaller, semantically coherent chunks that are optimal for embedding and retrieval
 3. **Metadata Extraction**: Important metadata like titles, URLs, publication dates, and content structure is preserved for search and citation purposes
 4. **Embedding Generation**: Text chunks are converted into high-dimensional vector representations using Azure OpenAI's embedding models
+
+#### **Document Processing Pipeline - Supplementary Content Integration**
+To enhance the vector databases with additional context beyond web scraping, the system supports uploading and processing supplementary documents:
+
+1. **Document Upload and Storage**:
+   - **Supported Formats**: PDF, Microsoft Word (.docx), and Markdown (.md) files
+   - **Azure Blob Storage**: Secure upload and storage of documents in Azure Blob Storage
+   - **File Validation**: Format verification, size limits, and content scanning
+   - **Metadata Extraction**: Document properties, creation dates, and file information
+
+2. **Document Content Extraction**:
+   - **PDF Processing**: Text extraction using PyPDF2/pdfplumber, handling complex layouts and embedded content
+   - **Word Document Processing**: Content extraction using python-docx, preserving formatting and structure
+   - **Markdown Processing**: Native parsing with metadata preservation
+   - **Content Normalization**: Convert all formats to consistent text representation
+
+3. **Hybrid Content Integration**:
+   - **Content Merging**: Combine scraped web content with uploaded document content
+   - **Source Attribution**: Maintain clear distinction between web sources and uploaded documents
+   - **Unified Chunking**: Apply consistent chunking strategy across all content types
+   - **Metadata Preservation**: Track content source (web vs. document) for proper citations
+
+4. **Enhanced Processing Pipeline**:
+   - **Duplicate Detection**: Identify and handle overlapping content between sources
+   - **Content Quality Assessment**: Score and filter content based on relevance and completeness
+   - **Batch Processing**: Efficient handling of multiple documents and web pages
+   - **Progress Tracking**: Real-time status updates for document processing
 
 #### **Vector Database Layer - Intelligent Storage (Azure-Only Architecture)**
 Azure AI Search serves as the exclusive vector database solution, with each scraping job resulting in the programmatic creation of a dedicated Azure AI Search index. This Azure-only architecture ensures all vector storage and processing occurs in the cloud, with no local or SQLite dependencies. Key characteristics:
@@ -152,10 +182,33 @@ This user-controlled, Azure-exclusive architecture ensures that all vector opera
 - **Frontend**: HTML5, CSS3, JavaScript (ES6+)
 - **Database**: PostgreSQL (for user data and metadata)
 - **Caching**: Redis
+- **File Storage**: Azure Blob Storage
+- **Document Processing**: PyPDF2, python-docx, python-markdown
 - **Deployment**: Azure Container Apps with AZD
 
 ### Python Dependencies
 The complete requirements.txt file includes all necessary dependencies organized by functionality. See the `requirements.txt` file in the project root for the comprehensive list of over 100 dependencies covering web scraping, AI integration, vector databases, testing, monitoring, and development tools.
+
+### Enhanced Dependencies for Document Processing
+```
+# Document Processing
+PyPDF2==3.0.1
+pdfplumber==0.10.0
+python-docx==1.1.0
+python-markdown==3.5.1
+
+# Azure Storage
+azure-storage-blob==12.19.0
+azure-identity==1.15.0
+
+# File Processing
+python-magic==0.4.27
+chardet==5.2.0
+
+# Additional utilities
+filetype==1.2.0
+validators==0.22.0
+```
 
 ## System Requirements
 
@@ -178,6 +231,9 @@ The complete requirements.txt file includes all necessary dependencies organized
    - Vector storage exclusively in Azure AI Search indexes
    - Metadata preservation and job-to-index mapping
    - Azure-based search index management (no local vector storage)
+   - **Document Upload and Integration**: Support for supplementary documents (PDF, Word, Markdown)
+   - **Hybrid Content Processing**: Combine scraped web content with uploaded documents
+   - **Azure Storage Integration**: Secure document storage and processing pipeline
 
 4. **Chat Interface**
    - Real-time chat with AI models
@@ -245,7 +301,220 @@ class ScrapingService:
         pass
 ```
 
-### 3. Vector Database Service (`vector_store.py`) - Azure-Only Implementation
+### 3. Document Processing Service (`document_processor.py`)
+```python
+from azure.storage.blob import BlobServiceClient
+from azure.core.exceptions import AzureError
+import PyPDF2
+import docx
+import markdown
+import os
+from typing import Dict, List, Tuple
+from celery import Celery
+
+class DocumentProcessingService:
+    def __init__(self):
+        self.blob_service_client = BlobServiceClient(
+            account_url=os.getenv("AZURE_STORAGE_ACCOUNT_URL"),
+            credential=os.getenv("AZURE_STORAGE_KEY")
+        )
+        self.container_name = "user-documents"
+    
+    def upload_document(self, file_data: bytes, filename: str, user_id: int) -> str:
+        """Upload document to Azure Blob Storage"""
+        blob_name = f"user_{user_id}/{filename}"
+        try:
+            blob_client = self.blob_service_client.get_blob_client(
+                container=self.container_name, 
+                blob=blob_name
+            )
+            blob_client.upload_blob(file_data, overwrite=True)
+            return blob_name
+        except AzureError as e:
+            raise Exception(f"Failed to upload document: {str(e)}")
+    
+    def validate_document(self, filename: str, file_size: int) -> bool:
+        """Validate document format and size"""
+        allowed_extensions = ['.pdf', '.docx', '.md']
+        max_size = 50 * 1024 * 1024  # 50MB limit
+        
+        if file_size > max_size:
+            raise ValueError("File size exceeds 50MB limit")
+        
+        file_ext = os.path.splitext(filename)[1].lower()
+        if file_ext not in allowed_extensions:
+            raise ValueError(f"Unsupported file format. Allowed: {allowed_extensions}")
+        
+        return True
+    
+    def extract_text_from_pdf(self, file_path: str) -> Tuple[str, Dict]:
+        """Extract text content from PDF file"""
+        try:
+            with open(file_path, 'rb') as file:
+                pdf_reader = PyPDF2.PdfReader(file)
+                text_content = ""
+                metadata = {
+                    "page_count": len(pdf_reader.pages),
+                    "title": pdf_reader.metadata.get('/Title', ''),
+                    "author": pdf_reader.metadata.get('/Author', ''),
+                    "source_type": "pdf_document"
+                }
+                
+                for page_num, page in enumerate(pdf_reader.pages):
+                    page_text = page.extract_text()
+                    text_content += f"\n--- Page {page_num + 1} ---\n{page_text}"
+                
+                return text_content.strip(), metadata
+        except Exception as e:
+            raise Exception(f"Failed to extract text from PDF: {str(e)}")
+    
+    def extract_text_from_docx(self, file_path: str) -> Tuple[str, Dict]:
+        """Extract text content from Word document"""
+        try:
+            doc = docx.Document(file_path)
+            text_content = ""
+            metadata = {
+                "paragraph_count": len(doc.paragraphs),
+                "source_type": "word_document"
+            }
+            
+            # Extract core properties if available
+            if hasattr(doc, 'core_properties'):
+                metadata.update({
+                    "title": doc.core_properties.title or '',
+                    "author": doc.core_properties.author or '',
+                    "created": str(doc.core_properties.created) if doc.core_properties.created else ''
+                })
+            
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():
+                    text_content += paragraph.text + "\n"
+            
+            return text_content.strip(), metadata
+        except Exception as e:
+            raise Exception(f"Failed to extract text from Word document: {str(e)}")
+    
+    def extract_text_from_markdown(self, file_path: str) -> Tuple[str, Dict]:
+        """Extract text content from Markdown file"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                content = file.read()
+            
+            # Convert markdown to plain text (removing formatting)
+            md = markdown.Markdown()
+            html = md.convert(content)
+            
+            # Extract metadata from markdown frontmatter if present
+            metadata = {
+                "source_type": "markdown_document",
+                "original_format": "markdown"
+            }
+            
+            # Simple extraction of text from HTML
+            import re
+            text_content = re.sub('<[^<]+?>', '', html)
+            
+            return text_content.strip(), metadata
+        except Exception as e:
+            raise Exception(f"Failed to extract text from Markdown: {str(e)}")
+    
+    @celery.task
+    def process_uploaded_documents(self, blob_names: List[str], user_id: int) -> List[Dict]:
+        """Process uploaded documents asynchronously"""
+        processed_documents = []
+        
+        for blob_name in blob_names:
+            try:
+                # Download document from blob storage
+                blob_client = self.blob_service_client.get_blob_client(
+                    container=self.container_name,
+                    blob=blob_name
+                )
+                
+                # Create temporary file
+                filename = os.path.basename(blob_name)
+                temp_path = f"/tmp/{filename}"
+                
+                with open(temp_path, 'wb') as temp_file:
+                    download_stream = blob_client.download_blob()
+                    temp_file.write(download_stream.readall())
+                
+                # Extract text based on file type
+                file_ext = os.path.splitext(filename)[1].lower()
+                
+                if file_ext == '.pdf':
+                    text_content, metadata = self.extract_text_from_pdf(temp_path)
+                elif file_ext == '.docx':
+                    text_content, metadata = self.extract_text_from_docx(temp_path)
+                elif file_ext == '.md':
+                    text_content, metadata = self.extract_text_from_markdown(temp_path)
+                else:
+                    continue  # Skip unsupported files
+                
+                # Add document info to metadata
+                metadata.update({
+                    "filename": filename,
+                    "blob_name": blob_name,
+                    "user_id": user_id,
+                    "content_length": len(text_content)
+                })
+                
+                processed_documents.append({
+                    "content": text_content,
+                    "metadata": metadata,
+                    "source_url": f"document://{filename}",
+                    "title": metadata.get("title", filename)
+                })
+                
+                # Clean up temporary file
+                os.remove(temp_path)
+                
+            except Exception as e:
+                print(f"Error processing document {blob_name}: {str(e)}")
+                continue
+        
+        return processed_documents
+    
+    def delete_document(self, blob_name: str) -> bool:
+        """Delete document from Azure Blob Storage"""
+        try:
+            blob_client = self.blob_service_client.get_blob_client(
+                container=self.container_name,
+                blob=blob_name
+            )
+            blob_client.delete_blob()
+            return True
+        except AzureError as e:
+            print(f"Failed to delete document: {str(e)}")
+            return False
+    
+    def chunk_document_content(self, content: str, metadata: Dict, chunk_size: int = 1000) -> List[Dict]:
+        """Split document content into chunks suitable for embedding"""
+        chunks = []
+        words = content.split()
+        
+        for i in range(0, len(words), chunk_size):
+            chunk_words = words[i:i + chunk_size]
+            chunk_text = ' '.join(chunk_words)
+            
+            chunk_metadata = metadata.copy()
+            chunk_metadata.update({
+                "chunk_index": i // chunk_size,
+                "chunk_size": len(chunk_words),
+                "total_chunks": (len(words) + chunk_size - 1) // chunk_size
+            })
+            
+            chunks.append({
+                "content": chunk_text,
+                "metadata": chunk_metadata,
+                "source_url": metadata.get("source_url", ""),
+                "title": f"{metadata.get('title', 'Document')} - Part {chunk_metadata['chunk_index'] + 1}"
+            })
+        
+        return chunks
+```
+
+### 4. Vector Database Service (`vector_store.py`) - Azure-Only Implementation
 ```python
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
@@ -270,14 +539,16 @@ class VectorStoreService:
         pass
     
     @celery.task
-    def create_vector_database_async(self, user_id: int, job_id: str, db_name: str) -> str:
-        """Asynchronous task to create vector database from scraping job"""
+    def create_vector_database_async(self, user_id: int, job_id: str, db_name: str, uploaded_documents: List[str] = None) -> str:
+        """Asynchronous task to create vector database from scraping job and optional documents"""
         # This runs in background without blocking the UI
         # 1. Create Azure AI Search index
-        # 2. Process and chunk content from job
-        # 3. Generate embeddings
-        # 4. Upload to Azure AI Search index
-        # 5. Update database status
+        # 2. Process and chunk content from scraping job
+        # 3. Process uploaded documents (if any)
+        # 4. Combine web content and document content
+        # 5. Generate embeddings for all content
+        # 6. Upload to Azure AI Search index
+        # 7. Update database status
         pass
     
     def get_search_client(self, index_name: str) -> SearchClient:
@@ -314,6 +585,46 @@ class VectorStoreService:
         """Get current status of vector database creation (non-blocking)"""
         # Return status: building, ready, error with progress information
         pass
+    
+    def combine_content_sources(self, web_content: List[dict], document_content: List[dict]) -> List[dict]:
+        """Combine scraped web content with processed document content"""
+        combined_content = []
+        
+        # Add web content with source attribution
+        for item in web_content:
+            item['content_source'] = 'web_scraping'
+            combined_content.append(item)
+        
+        # Add document content with source attribution
+        for item in document_content:
+            item['content_source'] = 'uploaded_document'
+            combined_content.append(item)
+        
+        return combined_content
+    
+    def create_enhanced_index_schema(self) -> dict:
+        """Create Azure AI Search index schema with document support"""
+        return {
+            "fields": [
+                {"name": "id", "type": "Edm.String", "key": True},
+                {"name": "content", "type": "Edm.String", "searchable": True},
+                {"name": "title", "type": "Edm.String", "searchable": True},
+                {"name": "url", "type": "Edm.String", "retrievable": True},
+                {"name": "content_vector", "type": "Collection(Edm.Single)", 
+                 "searchable": True, "vectorSearchDimensions": 1536},
+                {"name": "content_source", "type": "Edm.String", "filterable": True, "facetable": True},
+                {"name": "source_type", "type": "Edm.String", "filterable": True, "facetable": True},
+                {"name": "filename", "type": "Edm.String", "retrievable": True},
+                {"name": "timestamp", "type": "Edm.DateTimeOffset", "filterable": True},
+                {"name": "chunk_index", "type": "Edm.Int32", "filterable": True},
+                {"name": "metadata", "type": "Edm.String", "retrievable": True}
+            ],
+            "vectorSearch": {
+                "algorithms": [
+                    {"name": "vector-config", "kind": "hnsw"}
+                ]
+            }
+        }
 ```
 
 ### 4. LLM Service (`llm_service.py`)
@@ -446,6 +757,25 @@ CREATE TABLE chat_messages (
 );
 ```
 
+#### Uploaded Documents Table
+```sql
+CREATE TABLE uploaded_documents (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    vector_db_id INTEGER REFERENCES vector_databases(id),
+    filename VARCHAR(255) NOT NULL,
+    original_filename VARCHAR(255) NOT NULL,
+    file_size INTEGER NOT NULL,
+    file_type VARCHAR(10) NOT NULL, -- 'pdf', 'docx', 'md'
+    blob_name VARCHAR(500) NOT NULL, -- Azure Blob Storage reference
+    content_length INTEGER,
+    processing_status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'processed', 'failed'
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    processed_at TIMESTAMP,
+    metadata JSONB
+);
+```
+
 ## API Design
 
 ### Authentication Endpoints
@@ -495,8 +825,27 @@ GET /api/scrape/completed-jobs
 - Response: {"jobs": [array of completed scraping jobs available for vector db creation]}
 
 POST /api/vector-dbs/create
-- Body: {"name": "string", "scraping_job_id": "string"}
+- Body: {
+    "name": "string", 
+    "scraping_job_id": "string",
+    "uploaded_files": ["file1", "file2", ...] // Optional file uploads
+  }
 - Response: {"db_id": "string", "azure_index_name": "string", "status": "building"}
+
+POST /api/documents/upload
+- Body: FormData with files
+- Response: {
+    "uploaded_files": [
+      {"filename": "string", "blob_name": "string", "size": integer}
+    ]
+  }
+
+GET /api/documents/validate
+- Query: filename, size
+- Response: {"valid": boolean, "error": "string"}
+
+DELETE /api/documents/{blob_name}
+- Response: {"success": boolean}
 
 GET /api/vector-dbs/{db_id}/status
 - Response: {"status": "building|ready|error", "progress": integer, "document_count": integer}
@@ -677,6 +1026,113 @@ def search_job_content(index_name: str, query: str, search_type: str):
 - **Monitoring**: Azure AI Search metrics for performance tracking
 
 This user-controlled, Azure-exclusive approach ensures that users have complete control over each step while maintaining a responsive interface and the solution scales to enterprise requirements.
+
+## Enhanced Document Integration Workflow
+
+### Complete User Journey with Document Upload
+
+The enhanced USYD Web Crawler and RAG solution now supports a hybrid content approach, allowing users to combine scraped web content with uploaded documents for richer, more comprehensive vector databases.
+
+#### **Step-by-Step Enhanced Process**
+
+1. **Authentication and Setup** (Same as before)
+   - Users log in through the secure authentication system
+   - Access to personalized dashboard with scraping and document management capabilities
+
+2. **Web Scraping Phase** (Same as before)
+   - Users configure and initiate web scraping jobs (single page, deep crawl, or sitemap)
+   - Asynchronous processing ensures UI remains responsive
+   - Real-time progress tracking and job status updates
+
+3. **Enhanced Vector Database Creation** (New Enhanced Process)
+   - **Step 3a**: User clicks "Create Vector Database" button
+   - **Step 3b**: Enhanced modal opens with two content source options:
+     - **Required**: Select completed scraping job as primary content source
+     - **Optional**: Upload supplementary documents (PDF, Word, Markdown)
+   
+   - **Step 3c**: Document Upload Process (Optional)
+     - Drag-and-drop or file browser selection
+     - Real-time validation (file type, size limits, duplicate detection)
+     - Visual file preview with metadata display
+     - Secure upload to Azure Blob Storage
+   
+   - **Step 3d**: Combined Processing Initiation
+     - User submits form to create enhanced vector database
+     - System processes both web content and uploaded documents
+     - Asynchronous background processing maintains UI responsiveness
+
+4. **Hybrid Content Processing Pipeline** (Enhanced)
+   - **Phase 1**: Web content processing (existing pipeline)
+     - Content cleaning and text extraction from scraped pages
+     - Intelligent chunking and metadata preservation
+   
+   - **Phase 2**: Document content processing (new)
+     - Download documents from Azure Blob Storage
+     - Format-specific text extraction (PDF, Word, Markdown)
+     - Content normalization to match web content structure
+     - Document metadata preservation and source attribution
+   
+   - **Phase 3**: Content integration and enhancement
+     - Combine web content chunks with document chunks
+     - Apply consistent embedding generation across all content
+     - Maintain source attribution for proper citations
+     - Create unified Azure AI Search index with mixed content
+
+5. **Enhanced Vector Database Features** (New Capabilities)
+   - **Multi-Source Search**: Query across both web content and uploaded documents
+   - **Source Filtering**: Filter results by content source (web vs. documents)
+   - **Enhanced Citations**: Proper attribution to web pages or document sections
+   - **Richer Context**: More comprehensive knowledge base for AI responses
+
+6. **Chat Interface with Enhanced Context** (Improved)
+   - AI can reference both scraped web content and uploaded documents
+   - Source citations include document names and page numbers where applicable
+   - Enhanced search capabilities across diverse content types
+   - Improved answer quality from richer knowledge base
+
+#### **Benefits of Document Integration**
+
+1. **Comprehensive Knowledge Base**
+   - Combine public web information with private/proprietary documents
+   - Create domain-specific knowledge repositories
+   - Supplement web content with detailed technical documentation
+
+2. **Enhanced Search and Discovery**
+   - Cross-reference information between web sources and documents
+   - Find connections between public information and internal documents
+   - Comprehensive coverage of topics across multiple content types
+
+3. **Improved AI Responses**
+   - More accurate answers from diverse content sources
+   - Better context understanding from multiple perspectives
+   - Enhanced ability to provide detailed, well-sourced responses
+
+4. **Flexible Content Management**
+   - Easy addition of new documents to existing vector databases
+   - Support for various document formats and structures
+   - Scalable approach to knowledge base expansion
+
+#### **Example Use Cases**
+
+1. **Research Projects**
+   - Scrape academic websites and papers
+   - Upload related research documents, notes, and findings
+   - Create comprehensive research knowledge base
+
+2. **Business Intelligence**
+   - Scrape competitor websites and industry news
+   - Upload internal reports, market research, and strategy documents
+   - Build comprehensive market analysis database
+
+3. **Technical Documentation**
+   - Scrape official API documentation and tutorials
+   - Upload internal guides, code documentation, and best practices
+   - Create unified technical knowledge repository
+
+4. **Legal and Compliance**
+   - Scrape regulatory websites and legal databases
+   - Upload internal policies, contracts, and compliance documents
+   - Build comprehensive legal reference system
 
 ## User Interface Design
 
@@ -1226,6 +1682,525 @@ class Dashboard {
 
 // Initialize dashboard when page loads
 const dashboard = new Dashboard();
+```
+
+### Enhanced UI Components for Document Upload
+
+#### File Upload Modal Enhancement
+```html
+<!-- Enhanced Create Vector DB Modal with Document Upload -->
+<div id="create-db-modal" class="modal" style="display: none;">
+    <div class="modal-content large-modal">
+        <div class="modal-header">
+            <h3>Create Enhanced Vector Database</h3>
+            <button class="close-modal-btn" onclick="closeModal('create-db-modal')">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <form id="create-db-form" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label>Database Name:</label>
+                    <input type="text" id="db-name" required placeholder="Enter a descriptive name">
+                </div>
+                
+                <div class="form-group">
+                    <label>Source Scraping Job:</label>
+                    <select id="source-job" required>
+                        <option value="">Select a completed scraping job</option>
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+                
+                <div class="form-group document-upload-section">
+                    <label>Supplementary Documents (Optional):</label>
+                    <div class="upload-area">
+                        <input type="file" id="document-files" multiple 
+                               accept=".pdf,.docx,.md" style="display: none;">
+                        
+                        <div class="file-drop-zone" id="file-drop-zone">
+                            <div class="drop-zone-content">
+                                <i class="fas fa-cloud-upload-alt fa-3x"></i>
+                                <h4>Drag & Drop Documents Here</h4>
+                                <p>or</p>
+                                <button type="button" id="select-files-btn" class="file-select-btn">
+                                    <i class="fas fa-folder-open"></i> Browse Files
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="file-upload-info">
+                            <div class="supported-formats">
+                                <strong>Supported formats:</strong>
+                                <span class="format-badge">PDF</span>
+                                <span class="format-badge">Word (.docx)</span>
+                                <span class="format-badge">Markdown (.md)</span>
+                            </div>
+                            <div class="upload-limits">
+                                <small><i class="fas fa-info-circle"></i> Max size: 50MB per file | Max files: 10</small>
+                            </div>
+                        </div>
+                        
+                        <div id="selected-files-list" class="selected-files">
+                            <!-- Dynamically populated with selected files -->
+                        </div>
+                        
+                        <div id="upload-progress" class="upload-progress" style="display: none;">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="upload-progress-fill"></div>
+                            </div>
+                            <div class="progress-text" id="upload-progress-text">Uploading...</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="cancel-btn" onclick="closeModal('create-db-modal')">
+                        Cancel
+                    </button>
+                    <button type="submit" id="create-db-submit-btn" class="submit-btn">
+                        <i class="fas fa-database"></i> Create Vector Database
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+```
+
+#### Enhanced CSS for Document Upload
+```css
+/* Document Upload Styles */
+.large-modal .modal-content {
+    max-width: 600px;
+    width: 90%;
+}
+
+.document-upload-section {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    border: 2px dashed #dee2e6;
+    margin: 15px 0;
+}
+
+.file-drop-zone {
+    border: 2px dashed #007bff;
+    border-radius: 8px;
+    padding: 40px 20px;
+    text-align: center;
+    background: #f8f9ff;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.file-drop-zone:hover {
+    border-color: #0056b3;
+    background: #e7f3ff;
+}
+
+.file-drop-zone.drag-over {
+    border-color: #28a745;
+    background: #e8f5e8;
+}
+
+.drop-zone-content i {
+    color: #007bff;
+    margin-bottom: 15px;
+}
+
+.file-select-btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.3s ease;
+}
+
+.file-select-btn:hover {
+    background: #0056b3;
+}
+
+.supported-formats {
+    margin: 15px 0 10px 0;
+}
+
+.format-badge {
+    display: inline-block;
+    background: #e9ecef;
+    color: #495057;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-right: 8px;
+    font-weight: 500;
+}
+
+.selected-files {
+    margin-top: 15px;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: white;
+    padding: 12px 15px;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    margin-bottom: 8px;
+}
+
+.file-info {
+    display: flex;
+    align-items: center;
+    flex-grow: 1;
+}
+
+.file-icon {
+    margin-right: 10px;
+    font-size: 18px;
+}
+
+.file-icon.pdf { color: #dc3545; }
+.file-icon.docx { color: #0066cc; }
+.file-icon.md { color: #6f42c1; }
+
+.file-details {
+    flex-grow: 1;
+}
+
+.file-name {
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.file-size {
+    font-size: 12px;
+    color: #6c757d;
+}
+
+.file-remove {
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.upload-progress {
+    margin-top: 15px;
+    padding: 15px;
+    background: #e3f2fd;
+    border-radius: 6px;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #dee2e6;
+}
+
+.cancel-btn {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.submit-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 10px 25px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.submit-btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+}
+```
+
+#### Enhanced JavaScript for Document Upload
+```javascript
+// Enhanced Dashboard class with document upload support
+class EnhancedDashboard extends Dashboard {
+    constructor() {
+        super();
+        this.selectedFiles = [];
+        this.uploadedDocuments = [];
+        this.initDocumentUpload();
+    }
+    
+    initDocumentUpload() {
+        // File selection button
+        document.getElementById('select-files-btn').addEventListener('click', () => {
+            document.getElementById('document-files').click();
+        });
+        
+        // File input change
+        document.getElementById('document-files').addEventListener('change', (e) => {
+            this.handleFileSelection(e.target.files);
+        });
+        
+        // Drag and drop functionality
+        const dropZone = document.getElementById('file-drop-zone');
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            this.handleFileSelection(e.dataTransfer.files);
+        });
+        
+        // Click to select files
+        dropZone.addEventListener('click', (e) => {
+            if (e.target === dropZone || e.target.closest('.drop-zone-content')) {
+                document.getElementById('document-files').click();
+            }
+        });
+    }
+    
+    handleFileSelection(files) {
+        const maxFiles = 10;
+        const maxSize = 50 * 1024 * 1024; // 50MB
+        const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/markdown'];
+        
+        // Convert FileList to Array
+        const newFiles = Array.from(files);
+        
+        // Validate file count
+        if (this.selectedFiles.length + newFiles.length > maxFiles) {
+            this.showErrorMessage(`Maximum ${maxFiles} files allowed`);
+            return;
+        }
+        
+        // Validate and add files
+        newFiles.forEach(file => {
+            // Check file type
+            if (!allowedTypes.includes(file.type) && !file.name.endsWith('.md')) {
+                this.showErrorMessage(`Unsupported file type: ${file.name}`);
+                return;
+            }
+            
+            // Check file size
+            if (file.size > maxSize) {
+                this.showErrorMessage(`File too large: ${file.name} (max 50MB)`);
+                return;
+            }
+            
+            // Check for duplicates
+            if (this.selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                this.showWarningMessage(`File already selected: ${file.name}`);
+                return;
+            }
+            
+            this.selectedFiles.push(file);
+        });
+        
+        this.renderSelectedFiles();
+    }
+    
+    renderSelectedFiles() {
+        const container = document.getElementById('selected-files-list');
+        
+        if (this.selectedFiles.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+        
+        container.innerHTML = `
+            <h4>Selected Documents (${this.selectedFiles.length})</h4>
+            ${this.selectedFiles.map((file, index) => `
+                <div class="file-item" data-index="${index}">
+                    <div class="file-info">
+                        <div class="file-icon ${this.getFileIcon(file.name)}">
+                            <i class="fas ${this.getFileIconClass(file.name)}"></i>
+                        </div>
+                        <div class="file-details">
+                            <div class="file-name">${file.name}</div>
+                            <div class="file-size">${this.formatFileSize(file.size)}</div>
+                        </div>
+                    </div>
+                    <button type="button" class="file-remove" onclick="dashboard.removeFile(${index})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `).join('')}
+        `;
+    }
+    
+    removeFile(index) {
+        this.selectedFiles.splice(index, 1);
+        this.renderSelectedFiles();
+    }
+    
+    getFileIcon(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        return ext; // Returns 'pdf', 'docx', or 'md'
+    }
+    
+    getFileIconClass(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        switch (ext) {
+            case 'pdf': return 'fa-file-pdf';
+            case 'docx': return 'fa-file-word';
+            case 'md': return 'fa-file-alt';
+            default: return 'fa-file';
+        }
+    }
+    
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    async uploadDocuments() {
+        if (this.selectedFiles.length === 0) {
+            return [];
+        }
+        
+        const formData = new FormData();
+        this.selectedFiles.forEach((file, index) => {
+            formData.append(`document_${index}`, file);
+        });
+        
+        try {
+            this.showUploadProgress(0);
+            
+            const response = await fetch('/api/documents/upload', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error('Upload failed');
+            }
+            
+            const result = await response.json();
+            this.hideUploadProgress();
+            
+            return result.uploaded_files;
+        } catch (error) {
+            this.hideUploadProgress();
+            this.showErrorMessage('Failed to upload documents: ' + error.message);
+            return [];
+        }
+    }
+    
+    showUploadProgress(percent) {
+        const progressDiv = document.getElementById('upload-progress');
+        const progressFill = document.getElementById('upload-progress-fill');
+        const progressText = document.getElementById('upload-progress-text');
+        
+        progressDiv.style.display = 'block';
+        progressFill.style.width = `${percent}%`;
+        progressText.textContent = `Uploading documents... ${percent}%`;
+    }
+    
+    hideUploadProgress() {
+        document.getElementById('upload-progress').style.display = 'none';
+    }
+    
+    async handleEnhancedCreateVectorDB(e) {
+        e.preventDefault();
+        
+        const submitBtn = document.getElementById('create-db-submit-btn');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        
+        try {
+            // Upload documents first if any are selected
+            let uploadedFiles = [];
+            if (this.selectedFiles.length > 0) {
+                uploadedFiles = await this.uploadDocuments();
+                if (uploadedFiles.length !== this.selectedFiles.length) {
+                    throw new Error('Some documents failed to upload');
+                }
+            }
+            
+            // Create vector database with optional documents
+            const formData = new FormData(e.target);
+            const data = {
+                name: formData.get('name'),
+                scraping_job_id: formData.get('scraping_job_id'),
+                uploaded_files: uploadedFiles.map(f => f.blob_name)
+            };
+            
+            const response = await fetch('/api/vector-dbs/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                this.showSuccessMessage('Enhanced vector database creation started! Processing web content and documents...');
+                this.closeModal('create-db-modal');
+                this.resetCreateForm();
+                
+                // Track creation progress
+                setTimeout(() => {
+                    this.loadVectorDatabases();
+                    this.loadVectorDatabaseStats();
+                }, 1000);
+            } else {
+                throw new Error(result.error || 'Failed to create vector database');
+            }
+        } catch (error) {
+            this.showErrorMessage(error.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-database"></i> Create Vector Database';
+        }
+    }
+    
+    resetCreateForm() {
+        document.getElementById('create-db-form').reset();
+        this.selectedFiles = [];
+        this.renderSelectedFiles();
+        this.hideUploadProgress();
+    }
+    
+    showWarningMessage(message) {
+        this.showToast(message, 'warning');
+    }
+}
+
+// Replace the original dashboard initialization
+document.addEventListener('DOMContentLoaded', () => {
+    window.dashboard = new EnhancedDashboard();
+});
 ```
 
 ## Security Considerations

@@ -24,7 +24,30 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 
 # Azure Storage
-from azure.storage.blob import BlobServiceClient
+from azure.# Global singleton instance
+_document_processor_instance = None
+
+
+def get_document_processor():
+    """Get singleton instance of DocumentProcessingService with
+    lazy initialization"""
+    global _document_processor_instance
+    if _document_processor_instance is None:
+        _document_processor_instance = DocumentProcessingService()
+    return _document_processor_instance
+
+
+# Initialize the document processor singleton
+try:
+    document_processor = get_document_processor()
+    if document_processor.storage_enabled:
+        logger.info("Document processor initialized successfully with Azure Storage")
+    else:
+        logger.warning("Document processor initialized but Azure Storage is not available")
+        document_processor = None
+except Exception as e:
+    logger.error(f"Failed to initialize document processor: {e}")
+    document_processor = Noneport BlobServiceClient
 from azure.core.exceptions import AzureError
 
 # Document processing libraries
@@ -708,5 +731,14 @@ def get_document_processor():
     return _document_processor_instance
 
 
-# For backward compatibility
-document_processor = None
+# For backward compatibility - Initialize the document processor singleton
+try:
+    document_processor = get_document_processor()
+    if document_processor.storage_enabled:
+        logger.info("Document processor initialized successfully with Azure Storage")
+    else:
+        logger.warning("Document processor initialized but Azure Storage is not available")
+        document_processor = None
+except Exception as e:
+    logger.error(f"Failed to initialize document processor: {e}")
+    document_processor = None

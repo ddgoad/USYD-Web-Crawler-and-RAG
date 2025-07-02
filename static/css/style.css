@@ -910,30 +910,6 @@ h4 { font-size: var(--font-size-lg); }
     border-top: 1px solid var(--border-color);
 }
 
-/* Progress Bar */
-.progress-bar {
-    width: 100%;
-    height: 8px;
-    background: var(--bg-tertiary);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-    margin-bottom: var(--spacing-lg);
-}
-
-.progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
-    width: 0%;
-    transition: width var(--transition-normal);
-    border-radius: var(--radius-lg);
-}
-
-.progress-message {
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-}
-
 /* Error Page */
 .error-body {
     min-height: 100vh;

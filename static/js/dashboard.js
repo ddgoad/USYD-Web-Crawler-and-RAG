@@ -146,14 +146,8 @@ class Dashboard {
             const result = await response.json();
             
             if (response.ok) {
-                // Show appropriate notification based on scraping type
-                if (scrapingType === 'single') {
-                    this.showSuccessMessage('Single page scraping started - check the jobs list for status updates.');
-                } else {
-                    this.showSuccessMessage('Scraping job started successfully!');
-                    // Show progress modal for deep crawling and sitemap
-                    this.showProgressModal(result.job_id);
-                }
+                // Show consistent notification for all scraping types
+                this.showSuccessMessage('Scraping job started successfully! Check the jobs list for status updates.');
                 
                 e.target.reset();
                 // Reset scraping options visibility to default
@@ -168,47 +162,6 @@ class Dashboard {
             console.error('Error starting scraping job:', error);
             this.showErrorMessage('An error occurred while starting the scraping job');
         }
-    }
-    
-    showProgressModal(jobId) {
-        const modal = document.getElementById('progress-modal');
-        modal.style.display = 'flex';
-        
-        // Track progress
-        const trackProgress = async () => {
-            try {
-                const response = await fetch(`/api/scrape/status/${jobId}`);
-                const status = await response.json();
-                
-                if (response.ok) {
-                    const progressFill = document.getElementById('progress-fill');
-                    const progressMessage = document.getElementById('progress-message');
-                    
-                    progressFill.style.width = `${status.progress || 0}%`;
-                    progressMessage.textContent = status.message || 'Processing...';
-                    
-                    if (status.status === 'completed' || status.status === 'failed') {
-                        setTimeout(() => {
-                            modal.style.display = 'none';
-                            if (status.status === 'completed') {
-                                this.showSuccessMessage('Scraping completed successfully!');
-                            } else {
-                                this.showErrorMessage('Scraping failed: ' + status.message);
-                            }
-                            this.loadScrapingJobs();
-                        }, 2000);
-                        return;
-                    }
-                }
-            } catch (error) {
-                console.error('Error tracking progress:', error);
-            }
-            
-            // Continue tracking
-            setTimeout(trackProgress, 2000);
-        };
-        
-        trackProgress();
     }
     
     async loadScrapingJobs() {

@@ -30,6 +30,9 @@ class LLMService:
         # Initialize vector store service for RAG
         self.vector_service = VectorStoreService()
         
+        # Initialize database
+        self._init_database()
+        
         # Model configurations
         self.model_configs = {
             "gpt-4o": {
@@ -55,6 +58,44 @@ class LLMService:
             logger.error(f"Database connection failed: {str(e)}")
             raise
     
+    def _init_database(self):
+        """Initialize database tables if they don't exist"""
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor()
+            
+            # Create chat_sessions table if it doesn't exist
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS chat_sessions (
+                    id VARCHAR(36) PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                    vector_db_id VARCHAR(36) REFERENCES vector_databases(id) ON DELETE CASCADE,
+                    model_name VARCHAR(50) NOT NULL,
+                    config JSONB,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            
+            # Create chat_messages table if it doesn't exist
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS chat_messages (
+                    id SERIAL PRIMARY KEY,
+                    session_id VARCHAR(36) REFERENCES chat_sessions(id) ON DELETE CASCADE,
+                    role VARCHAR(10) NOT NULL CHECK (role IN ('user', 'assistant')),
+                    content TEXT NOT NULL,
+                    metadata JSONB,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            logger.info("LLM service database initialized successfully")
+        except Exception as e:
+            logger.error(f"LLM service database initialization failed: {str(e)}")
+            # Don't raise, as this shouldn't prevent the app from starting
+
     def _get_system_prompt(self) -> str:
         """Get system prompt for the AI assistant"""
         return """You are an intelligent assistant for the USYD Web Crawler and RAG system. 

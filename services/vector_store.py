@@ -71,13 +71,9 @@ class VectorStoreService:
             conn = self._get_db_connection()
             cursor = conn.cursor()
             
-            # Drop and recreate tables to ensure correct schema
-            cursor.execute("DROP TABLE IF EXISTS vector_documents CASCADE;")
-            cursor.execute("DROP TABLE IF EXISTS vector_databases CASCADE;")
-            
-            # Create vector_databases table
+            # Create vector_databases table if it doesn't exist
             cursor.execute("""
-                CREATE TABLE vector_databases (
+                CREATE TABLE IF NOT EXISTS vector_databases (
                     id VARCHAR(36) PRIMARY KEY,
                     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                     name VARCHAR(255) NOT NULL,
@@ -92,9 +88,9 @@ class VectorStoreService:
                 );
             """)
             
-            # Create vector_documents table
+            # Create vector_documents table if it doesn't exist
             cursor.execute("""
-                CREATE TABLE vector_documents (
+                CREATE TABLE IF NOT EXISTS vector_documents (
                     id VARCHAR(36) PRIMARY KEY,
                     database_id VARCHAR(36) REFERENCES vector_databases(id) ON DELETE CASCADE,
                     title VARCHAR(500),

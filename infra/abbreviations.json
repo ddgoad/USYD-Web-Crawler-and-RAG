@@ -8,5 +8,6 @@
   "searchSearchServices": "srch-",
   "operationalInsightsWorkspaces": "log-",
   "insightsComponents": "appi-",
-  "containerRegistryRegistries": "cr"
+  "containerRegistryRegistries": "cr",
+  "storageStorageAccounts": "st"
 }

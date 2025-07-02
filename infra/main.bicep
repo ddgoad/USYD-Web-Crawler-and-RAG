@@ -22,6 +22,8 @@ module containerAppsEnvironment 'container-apps-environment.bicep' = {
   params: {
     name: '${abbrs.appManagedEnvironments}${resourceToken}'
     location: location
+    storageAccountName: storage.outputs.storageAccountName
+    fileShareName: storage.outputs.fileShareName
     tags: tags
   }
 }
@@ -43,6 +45,16 @@ module redis 'redis.bicep' = {
   name: 'redis'
   params: {
     cacheName: '${abbrs.cacheRedis}${resourceToken}'
+    location: location
+    tags: tags
+  }
+}
+
+// Storage Account for persistent data
+module storage 'storage.bicep' = {
+  name: 'storage'
+  params: {
+    storageAccountName: 'st${resourceToken}'
     location: location
     tags: tags
   }
@@ -78,6 +90,7 @@ module containerApp 'containerapp.bicep' = {
     secretKey: 'usyd-rag-secret-key-${resourceToken}'
     userAssignedIdentityId: containerAppsEnvironment.outputs.userAssignedIdentityId
     registryLoginServer: containerAppsEnvironment.outputs.registryLoginServer
+    storageAccountName: storage.outputs.storageAccountName
     tags: tags
   }
 }

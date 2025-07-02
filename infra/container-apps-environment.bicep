@@ -1,7 +1,14 @@
 @description('Container Apps Environment with Log Analytics and Container Registry')
 param name string
 param location string = resourceGroup().location
+param storageAccountName string = ''
+param fileShareName string = ''
 param tags object = {}
+
+// Reference existing storage account
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = if (storageAccountName != '') {
+  name: storageAccountName
+}
 
 // User-assigned managed identity for container apps
 resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
@@ -71,6 +78,20 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2023-05-01'
       }
     }
     zoneRedundant: false
+  }
+}
+
+// Add storage configuration for Azure File Share
+resource containerAppsStorage 'Microsoft.App/managedEnvironments/storages@2023-05-01' = if (storageAccountName != '') {
+  name: 'scraped-data-storage'
+  parent: containerAppsEnvironment
+  properties: {
+    azureFile: {
+      accountName: storageAccountName
+      accountKey: storageAccount.listKeys().keys[0].value
+      shareName: fileShareName
+      accessMode: 'ReadWrite'
+    }
   }
 }
 

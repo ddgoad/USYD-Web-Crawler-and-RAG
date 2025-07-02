@@ -17,7 +17,13 @@ param redisUrl string
 param secretKey string
 param userAssignedIdentityId string
 param registryLoginServer string
+param storageAccountName string
 param tags object = {}
+
+// Get storage account key directly within this module
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
+  name: storageAccountName
+}
 
 resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   name: containerAppName
@@ -77,6 +83,10 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
         {
           name: 'secret-key'
           value: secretKey
+        }
+        {
+          name: 'storage-account-key'
+          value: storageAccount.listKeys().keys[0].value
         }
       ]
     }
@@ -139,6 +149,12 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
               value: '5000'
             }
           ]
+          volumeMounts: [
+            {
+              volumeName: 'scraped-data-volume'
+              mountPath: '/app/data'
+            }
+          ]
           resources: {
             cpu: json('1.0')
             memory: '2Gi'
@@ -163,6 +179,13 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
               periodSeconds: 10
             }
           ]
+        }
+      ]
+      volumes: [
+        {
+          name: 'scraped-data-volume'
+          storageType: 'AzureFile'
+          storageName: 'scraped-data-storage'
         }
       ]
       scale: {

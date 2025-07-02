@@ -100,9 +100,9 @@ module containerApp 'containerapp.bicep' = {
     azureOpenAIEndpoint: 'https://dgopenai2211200906498164.openai.azure.com/'
     azureOpenAIKey: 'EdKxnIPfLdrlOCpGGgOajk7fFJeopjLec4IHPk8lCAsLrUYIdIW2JQQJ99AKACL93NaXJ3w3AAAAACOGh1w8'
     azureSearchEndpoint: search.outputs.endpoint
-    azureSearchKey: listAdminKeys(resourceId(resourceGroup.name, 'Microsoft.Search/searchServices', '${abbrs.searchSearchServices}${resourceToken}'), '2023-11-01').primaryKey
+    azureSearchKey: listAdminKeys(resourceId('Microsoft.Search/searchServices', '${abbrs.searchSearchServices}${resourceToken}'), '2023-11-01').primaryKey
     databaseUrl: 'postgresql://${database.outputs.administratorLogin}:P%40ssw0rd123%21${resourceToken}@${database.outputs.serverFqdn}:5432/${database.outputs.databaseName}?sslmode=require'
-    redisUrl: 'rediss://:${listKeys(resourceId(resourceGroup.name, 'Microsoft.Cache/redis', '${abbrs.cacheRedis}${resourceToken}'), '2023-08-01').primaryKey}@${redis.outputs.redisHostName}:${redis.outputs.redisPort}/0'
+    redisUrl: 'rediss://:${listKeys(resourceId('Microsoft.Cache/redis', '${abbrs.cacheRedis}${resourceToken}'), '2023-08-01').primaryKey}@${redis.outputs.redisHostName}:${redis.outputs.redisPort}/0'
     secretKey: 'usyd-rag-secret-key-${resourceToken}'
     userAssignedIdentityId: containerAppsEnvironment.outputs.userAssignedIdentityId
     registryLoginServer: containerAppsEnvironment.outputs.registryLoginServer

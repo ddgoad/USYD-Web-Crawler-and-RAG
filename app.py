@@ -19,6 +19,7 @@ from services.auth import AuthService
 from services.scraper import ScrapingService
 from services.vector_store import VectorStoreService
 from services.llm_service import LLMService
+from services.document_processor import document_processor
 from models.user import User
 
 # Configure logging
@@ -489,6 +490,144 @@ def chat_history(session_id):
     except Exception as e:
         logger.error(f"Error getting chat history: {str(e)}")
         return jsonify({"error": "Failed to get chat history"}), 500
+
+# Document Upload and Processing Endpoints
+
+@app.route("/api/documents/upload", methods=["POST"])
+@login_required
+def upload_documents():
+    """Upload and process documents for vector database creation"""
+    try:
+        if 'documents' not in request.files:
+            return jsonify({"error": "No documents provided"}), 400
+        
+        files = request.files.getlist('documents')
+        if not files or all(f.filename == '' for f in files):
+            return jsonify({"error": "No documents selected"}), 400
+        
+        processed_documents = []
+        uploaded_blobs = []
+        
+        for file in files:
+            if file.filename == '':
+                continue
+                
+            # Read file data
+            file_data = file.read()
+            file_size = len(file_data)
+            
+            # Validate document
+            validation = document_processor.validate_document(
+                file.filename, file_size, file_data
+            )
+            
+            if not validation["valid"]:
+                return jsonify({"error": validation["error"]}), 400
+            
+            # Upload to Azure Blob Storage
+            try:
+                blob_name = document_processor.upload_document(
+                    file_data, file.filename, current_user.id
+                )
+                uploaded_blobs.append(blob_name)
+            except Exception as e:
+                # Clean up any already uploaded blobs
+                for blob in uploaded_blobs:
+                    document_processor.delete_document(blob)
+                return jsonify({"error": f"Upload failed: {str(e)}"}), 500
+        
+        # Process all uploaded documents
+        try:
+            documents = document_processor.process_uploaded_documents(
+                uploaded_blobs, current_user.id
+            )
+            
+            if not documents:
+                # Clean up uploaded blobs if processing failed
+                for blob in uploaded_blobs:
+                    document_processor.delete_document(blob)
+                return jsonify({"error": "No content could be extracted from documents"}), 400
+            
+            # Prepare file metadata
+            file_metadata = {
+                "user_id": current_user.id,
+                "uploaded_files": [{"filename": f.filename, "blob_name": blob} 
+                                 for f, blob in zip(files, uploaded_blobs)],
+                "file_count": len(files),
+                "total_chunks": len(documents),
+                "upload_timestamp": datetime.now().isoformat()
+            }
+            
+            # Save to storage using the same mechanism as scraper
+            doc_job_id = document_processor.save_processed_documents_to_storage(
+                current_user.id, documents, file_metadata
+            )
+            
+            return jsonify({
+                "success": True,
+                "document_job_id": doc_job_id,
+                "documents_processed": len(documents),
+                "files_uploaded": len(files)
+            })
+            
+        except Exception as e:
+            # Clean up uploaded blobs if processing failed
+            for blob in uploaded_blobs:
+                document_processor.delete_document(blob)
+            logger.error(f"Document processing failed: {str(e)}")
+            return jsonify({"error": f"Document processing failed: {str(e)}"}), 500
+            
+    except Exception as e:
+        logger.error(f"Error uploading documents: {str(e)}")
+        return jsonify({"error": "Failed to upload documents"}), 500
+
+
+@app.route("/api/documents/jobs")
+@login_required
+def get_document_jobs():
+    """Get all document jobs for the current user"""
+    try:
+        jobs = document_processor.get_user_document_jobs(current_user.id)
+        return jsonify({"jobs": jobs})
+    except Exception as e:
+        logger.error(f"Error getting document jobs: {str(e)}")
+        return jsonify({"error": "Failed to get document jobs"}), 500
+
+
+@app.route("/api/vector-dbs/create-hybrid", methods=["POST"])
+@login_required
+def create_hybrid_vector_database():
+    """Create vector database from combined web scraped and document sources"""
+    try:
+        data = request.get_json()
+        name = data.get("name")
+        description = data.get("description", "")
+        scraping_job_id = data.get("scraping_job_id")
+        document_job_ids = data.get("document_job_ids", [])
+        
+        if not name:
+            return jsonify({"error": "Database name is required"}), 400
+        
+        if not scraping_job_id and not document_job_ids:
+            return jsonify({"error": "At least one source (scraping job or document jobs) is required"}), 400
+        
+        db_id = vector_service.create_database_from_hybrid_sources(
+            user_id=current_user.id,
+            name=name,
+            description=description,
+            scraping_job_id=scraping_job_id,
+            document_job_ids=document_job_ids
+        )
+        
+        return jsonify({
+            "success": True,
+            "database_id": db_id,
+            "message": "Hybrid vector database creation started"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error creating hybrid vector database: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 # Health check endpoint
 @app.route("/health")

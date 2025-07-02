@@ -64,6 +64,8 @@ class VectorStoreService:
         
         # Initialize database
         self._init_database()
+        self._init_hybrid_database_tables()
+        self._init_hybrid_database_tables()
     
     def _init_database(self):
         """Initialize database tables if they don't exist"""
@@ -843,4 +845,356 @@ class VectorStoreService:
         except Exception as e:
             logger.error(f"Failed to get database status for {db_id}: {str(e)}")
             return None
+
+    def create_database_from_hybrid_sources(self, user_id: int, name: str, 
+                                          scraping_job_id: str = None, 
+                                          document_job_ids: List[str] = None, 
+                                          description: str = None) -> str:
+        """Create vector database from combined web scraped and document sources"""
+        try:
+            db_id = str(uuid.uuid4())
+            
+            conn = self._get_db_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            
+            source_url = None
+            
+            # Validate scraping job if provided
+            if scraping_job_id:
+                cursor.execute("""
+                    SELECT * FROM scraping_jobs
+                    WHERE id = %s AND user_id = %s AND status = 'completed';
+                """, (scraping_job_id, user_id))
+                
+                job = cursor.fetchone()
+                if not job:
+                    raise Exception("Scraping job not found or not completed")
+                source_url = job['url']
+            
+            # Validate document jobs if provided
+            if document_job_ids:
+                for doc_job_id in document_job_ids:
+                    cursor.execute("""
+                        SELECT * FROM document_jobs
+                        WHERE id = %s AND user_id = %s AND status = 'completed';
+                    """, (doc_job_id, user_id))
+                    
+                    doc_job = cursor.fetchone()
+                    if not doc_job:
+                        raise Exception(f"Document job {doc_job_id} not found or not completed")
+            
+            # At least one source must be provided
+            if not scraping_job_id and not document_job_ids:
+                raise Exception("At least one source (scraping job or document jobs) must be provided")
+            
+            # Create Azure Search index
+            azure_index_name = f"usyd-rag-{db_id}"
+            if not self._create_search_index(azure_index_name):
+                raise Exception("Failed to create search index")
+            
+            # Create vector database record
+            cursor.execute("""
+                INSERT INTO vector_databases 
+                (id, user_id, scraping_job_id, name, description, source_url, azure_index_name, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+            """, (db_id, user_id, scraping_job_id, name, description, source_url, azure_index_name, 'building'))
+            
+            # Link document jobs to the vector database
+            if document_job_ids:
+                for doc_job_id in document_job_ids:
+                    cursor.execute("""
+                        INSERT INTO vector_database_sources 
+                        (vector_db_id, source_type, source_id)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT DO NOTHING;
+                    """, (db_id, 'document_job', doc_job_id))
+            
+            # Link scraping job to the vector database
+            if scraping_job_id:
+                cursor.execute("""
+                    INSERT INTO vector_database_sources 
+                    (vector_db_id, source_type, source_id)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT DO NOTHING;
+                """, (db_id, 'scraping_job', scraping_job_id))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            # Start processing both sources in background
+            self._start_hybrid_processing_background(db_id, scraping_job_id, document_job_ids)
+            
+            logger.info(f"Created hybrid vector database {db_id} for user {user_id}")
+            return db_id
+            
+        except Exception as e:
+            logger.error(f"Failed to create hybrid vector database: {str(e)}")
+            raise
+    
+    def _start_hybrid_processing_background(self, db_id: str, scraping_job_id: str = None, 
+                                          document_job_ids: List[str] = None):
+        """Start hybrid vector database processing using background thread"""
+        def process_hybrid_vector_db():
+            try:
+                logger.info("Starting background hybrid vector processing (threading)")
+                self._process_hybrid_data_async(db_id, scraping_job_id, document_job_ids)
+                logger.info("Background hybrid vector processing completed")
+            except Exception as e:
+                logger.error(f"Error in background hybrid vector processing: {str(e)}", exc_info=True)
+                # Update status to failed
+                try:
+                    conn = self._get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE vector_databases 
+                        SET status = %s
+                        WHERE id = %s;
+                    """, ('error', db_id))
+                    conn.commit()
+                    cursor.close()
+                    conn.close()
+                except Exception as db_error:
+                    logger.error(f"Failed to update vector DB status: {db_error}")
+        
+        import threading
+        thread = threading.Thread(target=process_hybrid_vector_db)
+        thread.daemon = True
+        thread.start()
+        logger.info(f"Started background thread for hybrid vector DB {db_id}")
+
+    def _process_hybrid_data_async(self, db_id: str, scraping_job_id: str = None, 
+                                 document_job_ids: List[str] = None):
+        """Process both scraped data and documents and add to vector database"""
+        try:
+            # Get database record
+            conn = self._get_db_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            
+            cursor.execute("""
+                SELECT * FROM vector_databases WHERE id = %s;
+            """, (db_id,))
+            
+            db_record = cursor.fetchone()
+            if not db_record:
+                raise Exception("Vector database record not found")
+            
+            azure_index_name = db_record['azure_index_name']
+            logger.info(f"Processing hybrid data for Azure index: {azure_index_name}")
+            
+            # Create search client for this index
+            search_client = SearchClient(
+                endpoint=self.search_endpoint,
+                index_name=azure_index_name,
+                credential=self.credential
+            )
+            
+            # Process all sources
+            all_documents = []
+            document_count = 0
+            
+            # Process scraped data if available
+            if scraping_job_id:
+                scraped_docs = self._load_and_process_scraped_source(scraping_job_id, db_id)
+                all_documents.extend(scraped_docs)
+                document_count += len(scraped_docs)
+                logger.info(f"Processed {len(scraped_docs)} documents from scraped data")
+            
+            # Process document data if available
+            if document_job_ids:
+                for doc_job_id in document_job_ids:
+                    doc_documents = self._load_and_process_document_source(doc_job_id, db_id)
+                    all_documents.extend(doc_documents)
+                    document_count += len(doc_documents)
+                    logger.info(f"Processed {len(doc_documents)} documents from document job {doc_job_id}")
+            
+            # Upload all documents to Azure Search
+            if all_documents:
+                logger.info(f"Uploading {len(all_documents)} total document chunks to Azure Search")
+                # Upload in batches
+                batch_size = 100
+                for i in range(0, len(all_documents), batch_size):
+                    batch = all_documents[i:i + batch_size]
+                    try:
+                        search_client.upload_documents(documents=batch)
+                        logger.info(f"Uploaded batch {i//batch_size + 1}/{(len(all_documents) + batch_size - 1)//batch_size}")
+                    except Exception as e:
+                        logger.error(f"Failed to upload batch {i//batch_size + 1}: {str(e)}")
+                        raise
+                
+                logger.info(f"Successfully uploaded all {len(all_documents)} document chunks to index {azure_index_name}")
+            else:
+                logger.warning("No documents to upload - no valid content found")
+            
+            # Update database record
+            cursor.execute("""
+                UPDATE vector_databases 
+                SET status = %s, document_count = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s;
+            """, ('ready', document_count, db_id))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            logger.info(f"Hybrid vector database {db_id} is ready with {document_count} documents")
+            
+        except Exception as e:
+            logger.error(f"Failed to process hybrid data for database {db_id}: {str(e)}", exc_info=True)
+            
+            # Update status to error
+            try:
+                conn = self._get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE vector_databases 
+                    SET status = %s, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s;
+                """, ('error', db_id))
+                conn.commit()
+                cursor.close()
+                conn.close()
+                logger.info(f"Updated vector database {db_id} status to error")
+            except Exception as db_error:
+                logger.error(f"Failed to update database status to error: {str(db_error)}")
+
+    def _load_and_process_scraped_source(self, scraping_job_id: str, db_id: str) -> List[Dict]:
+        """Load and process scraped data source"""
+        data_file = f"data/raw/{scraping_job_id}/scraped_data.json"
+        if not os.path.exists(data_file):
+            logger.warning(f"Scraped data file not found: {data_file}")
+            return []
+        
+        logger.info(f"Loading scraped data from {data_file}")
+        
+        with open(data_file, 'r', encoding='utf-8') as f:
+            scraped_data = json.load(f)
+        
+        documents = []
+        chunk_counter = 0
+        
+        if scraped_data.get('success'):
+            # Handle both single page and multi-page results
+            if 'results' in scraped_data and isinstance(scraped_data['results'], list):
+                results = scraped_data['results']
+            elif 'content' in scraped_data:
+                results = [scraped_data]
+            else:
+                results = []
+            
+            for result in results:
+                content = result.get('content', '')
+                if not content or not content.strip():
+                    continue
+                
+                # Chunk the content
+                chunks = self._chunk_text(content)
+                
+                # Generate embeddings for chunks
+                try:
+                    embeddings = self._generate_embeddings(chunks)
+                except Exception as e:
+                    logger.error(f"Failed to generate embeddings: {str(e)}")
+                    continue
+                
+                # Create documents for each chunk
+                for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                    doc_id = f"{db_id}_scraped_{chunk_counter}_{i}"
+                    
+                    document = {
+                        "id": doc_id,
+                        "content": chunk,
+                        "title": result.get('title', ''),
+                        "url": result.get('url', ''),
+                        "chunk_index": i,
+                        "source_type": "web_scraped",
+                        "metadata": json.dumps(result.get('metadata', {})),
+                        "content_vector": embedding
+                    }
+                    
+                    documents.append(document)
+                
+                chunk_counter += 1
+        
+        return documents
+
+    def _load_and_process_document_source(self, document_job_id: str, db_id: str) -> List[Dict]:
+        """Load and process document data source"""
+        data_file = f"data/raw/{document_job_id}/scraped_data.json"
+        if not os.path.exists(data_file):
+            logger.warning(f"Document data file not found: {data_file}")
+            return []
+        
+        logger.info(f"Loading document data from {data_file}")
+        
+        with open(data_file, 'r', encoding='utf-8') as f:
+            document_data = json.load(f)
+        
+        documents = []
+        chunk_counter = 0
+        
+        if document_data.get('success') and 'results' in document_data:
+            for result in document_data['results']:
+                content = result.get('content', '')
+                if not content or not content.strip():
+                    continue
+                
+                # Content is already chunked by the document processor
+                # Generate embeddings for the chunk
+                try:
+                    embeddings = self._generate_embeddings([content])
+                    embedding = embeddings[0]
+                except Exception as e:
+                    logger.error(f"Failed to generate embeddings: {str(e)}")
+                    continue
+                
+                # Create document
+                doc_id = f"{db_id}_doc_{chunk_counter}_{result.get('chunk_index', 0)}"
+                
+                document = {
+                    "id": doc_id,
+                    "content": content,
+                    "title": result.get('title', ''),
+                    "url": result.get('url', result.get('filename', '')),
+                    "chunk_index": result.get('chunk_index', 0),
+                    "source_type": "uploaded_document",
+                    "metadata": json.dumps(result.get('metadata', {})),
+                    "content_vector": embedding
+                }
+                
+                documents.append(document)
+                chunk_counter += 1
+        
+        return documents
+
+    def _init_hybrid_database_tables(self):
+        """Initialize additional tables for hybrid vector databases"""
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor()
+            
+            # Create vector_database_sources table to track multiple sources per database
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS vector_database_sources (
+                    id SERIAL PRIMARY KEY,
+                    vector_db_id VARCHAR(36) REFERENCES vector_databases(id) ON DELETE CASCADE,
+                    source_type VARCHAR(20) NOT NULL,  -- 'scraping_job' or 'document_job'
+                    source_id VARCHAR(36) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(vector_db_id, source_type, source_id)
+                );
+            """)
+            
+            # Add description column to vector_databases if it doesn't exist
+            cursor.execute("""
+                ALTER TABLE vector_databases 
+                ADD COLUMN IF NOT EXISTS description TEXT;
+            """)
+            
+            conn.commit()
+            conn.close()
+            logger.info("Hybrid vector store database tables initialized successfully")
+        except Exception as e:
+            logger.error(f"Hybrid vector store database initialization failed: {str(e)}")
+            # Don't raise, as this shouldn't prevent the app from starting
 

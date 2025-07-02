@@ -54,6 +54,15 @@ azure-keyvault-secrets==4.7.0
 # Text processing (used by vector_store.py)
 tiktoken==0.7.0
 
+# Document processing for uploaded files
+PyPDF2==3.0.1
+pdfplumber==0.10.0
+python-docx==1.1.0
+python-markdown==3.5.1
+python-magic==0.4.27
+chardet==5.2.0
+filetype==1.2.0
+
 # ==================== BACKGROUND TASK PROCESSING ====================
 # Celery for async task processing (used by app.py, worker.py, scraper.py)
 celery==5.3.0

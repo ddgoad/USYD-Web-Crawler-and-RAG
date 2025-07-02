@@ -42,7 +42,21 @@ class Dashboard {
         });
         
         document.getElementById('create-db-form').addEventListener('submit', (e) => {
-            this.handleCreateVectorDB(e);
+            this.handleNewCreateVectorDB(e);
+        });
+        
+        // Content source toggles
+        document.getElementById('use-web-content').addEventListener('change', (e) => {
+            this.toggleContentSource('web-content-options', e.target.checked);
+        });
+        
+        document.getElementById('use-documents').addEventListener('change', (e) => {
+            this.toggleContentSource('document-options', e.target.checked);
+        });
+        
+        // Document file selection
+        document.getElementById('document-files').addEventListener('change', (e) => {
+            this.updateSelectedFiles(e);
         });
         
         // Chat functionality
@@ -289,6 +303,9 @@ class Dashboard {
                     completedJobs.map(job => `
                         <option value="${job.id}">${job.url} (${job.scraping_type})</option>
                     `).join('');
+                
+                // Reset form and initialize validation
+                this.resetCreateDBForm();
                 
                 document.getElementById('create-db-modal').style.display = 'flex';
             }
@@ -812,6 +829,251 @@ class Dashboard {
         scrapingTypeSelect.value = 'single';
         this.toggleScrapingOptions('single');
     }
+    
+    toggleContentSource(optionsId, enabled) {
+        const optionsDiv = document.getElementById(optionsId);
+        if (optionsDiv) {
+            optionsDiv.style.display = enabled ? 'block' : 'none';
+        }
+        
+        // Update form validation
+        this.updateFormValidation();
+    }
+    
+    updateSelectedFiles(event) {
+        const files = event.target.files;
+        const fileList = document.getElementById('selected-files');
+        
+        // Clear previous file list
+        fileList.innerHTML = '';
+        
+        if (files.length === 0) {
+            return;
+        }
+        
+        // Display selected files
+        Array.from(files).forEach((file, index) => {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            
+            const fileSize = this.formatFileSize(file.size);
+            const fileIcon = this.getFileIcon(file.name);
+            
+            fileItem.innerHTML = `
+                <div class="file-info">
+                    <i class="${fileIcon}"></i>
+                    <span class="file-name">${file.name}</span>
+                    <span class="file-size">(${fileSize})</span>
+                </div>
+                <button type="button" class="remove-file-btn" onclick="dashboard.removeFile(${index})">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            
+            fileList.appendChild(fileItem);
+        });
+        
+        this.updateFormValidation();
+    }
+    
+    getFileIcon(filename) {
+        const ext = filename.toLowerCase().split('.').pop();
+        switch (ext) {
+            case 'pdf': return 'fas fa-file-pdf';
+            case 'docx': return 'fas fa-file-word';
+            case 'md': return 'fas fa-file-code';
+            default: return 'fas fa-file';
+        }
+    }
+    
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    removeFile(index) {
+        const fileInput = document.getElementById('document-files');
+        const dt = new DataTransfer();
+        
+        Array.from(fileInput.files).forEach((file, i) => {
+            if (i !== index) {
+                dt.items.add(file);
+            }
+        });
+        
+        fileInput.files = dt.files;
+        this.updateSelectedFiles({ target: fileInput });
+    }
+    
+    updateFormValidation() {
+        const useWebContent = document.getElementById('use-web-content').checked;
+        const useDocuments = document.getElementById('use-documents').checked;
+        const scrapingJobSelect = document.getElementById('source-job');
+        const documentFiles = document.getElementById('document-files');
+        const submitBtn = document.getElementById('create-db-submit');
+        
+        // At least one content source must be selected
+        const hasWebContent = useWebContent && scrapingJobSelect.value;
+        const hasDocuments = useDocuments && documentFiles.files.length > 0;
+        const isValid = hasWebContent || hasDocuments;
+        
+        // Update scraping job requirement
+        scrapingJobSelect.required = useWebContent;
+        
+        // Update submit button state
+        submitBtn.disabled = !isValid;
+    }
+    
+    async handleNewCreateVectorDB(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const useWebContent = document.getElementById('use-web-content').checked;
+        const useDocuments = document.getElementById('use-documents').checked;
+        
+        if (!useWebContent && !useDocuments) {
+            this.showErrorMessage('Please select at least one content source.');
+            return;
+        }
+        
+        try {
+            // Show progress
+            this.showProgress('Preparing to create vector database...');
+            
+            let scrapingJobId = null;
+            let documentJobIds = [];
+            
+            // Handle document upload if selected
+            if (useDocuments) {
+                const files = document.getElementById('document-files').files;
+                if (files.length > 0) {
+                    this.showProgress('Uploading and processing documents...');
+                    const docJobId = await this.uploadDocuments(files);
+                    if (docJobId) {
+                        documentJobIds.push(docJobId);
+                    } else {
+                        throw new Error('Document upload failed');
+                    }
+                }
+            }
+            
+            // Get scraping job if selected
+            if (useWebContent) {
+                scrapingJobId = formData.get('scraping_job_id');
+                if (!scrapingJobId) {
+                    throw new Error('Please select a scraping job for web content');
+                }
+            }
+            
+            // Create hybrid vector database
+            this.showProgress('Creating vector database...');
+            
+            const data = {
+                name: formData.get('name'),
+                description: formData.get('description'),
+                scraping_job_id: scrapingJobId,
+                document_job_ids: documentJobIds
+            };
+            
+            const response = await fetch('/api/vector-dbs/create-hybrid', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                this.showSuccessMessage('Vector database creation started!');
+                this.closeModal('create-db-modal');
+                this.resetCreateDBForm();
+                
+                // Reload vector databases
+                setTimeout(() => {
+                    this.loadVectorDatabases();
+                    this.loadVectorDatabaseStats();
+                }, 1000);
+            } else {
+                throw new Error(result.error || 'Failed to create vector database');
+            }
+            
+        } catch (error) {
+            console.error('Error creating vector database:', error);
+            this.showErrorMessage(error.message || 'Failed to create vector database');
+        } finally {
+            this.hideProgress();
+        }
+    }
+    
+    async uploadDocuments(files) {
+        try {
+            const formData = new FormData();
+            Array.from(files).forEach(file => {
+                formData.append('documents', file);
+            });
+            
+            const response = await fetch('/api/documents/upload', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                this.showSuccessMessage(`Successfully processed ${result.documents_processed} document chunks from ${result.files_uploaded} files`);
+                return result.document_job_id;
+            } else {
+                throw new Error(result.error || 'Document upload failed');
+            }
+            
+        } catch (error) {
+            console.error('Error uploading documents:', error);
+            this.showErrorMessage(error.message || 'Failed to upload documents');
+            return null;
+        }
+    }
+    
+    showProgress(message) {
+        const progressSection = document.getElementById('upload-progress');
+        const progressText = document.getElementById('progress-text');
+        const submitBtn = document.getElementById('create-db-submit');
+        
+        progressSection.style.display = 'block';
+        progressText.textContent = message;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    }
+    
+    hideProgress() {
+        const progressSection = document.getElementById('upload-progress');
+        const submitBtn = document.getElementById('create-db-submit');
+        
+        progressSection.style.display = 'none';
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-database"></i> Create Database';
+    }
+    
+    resetCreateDBForm() {
+        const form = document.getElementById('create-db-form');
+        form.reset();
+        
+        // Reset checkboxes and options
+        document.getElementById('use-web-content').checked = false;
+        document.getElementById('use-documents').checked = false;
+        document.getElementById('web-content-options').style.display = 'none';
+        document.getElementById('document-options').style.display = 'none';
+        
+        // Clear file list
+        document.getElementById('selected-files').innerHTML = '';
+        
+        this.hideProgress();
+        this.updateFormValidation();
+    }
 }
 
 // Global functions for modal handling
@@ -821,7 +1083,8 @@ function closeModal(modalId) {
 
 // Initialize dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new Dashboard();
+    // Initialize dashboard
+    window.dashboard = new Dashboard();
 });
 
 // Add CSS animations dynamically

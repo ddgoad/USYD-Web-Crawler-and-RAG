@@ -142,7 +142,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
             }
             {
               name: 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT'
-              value: 'text-embedding-3-small'
+              value: 'text-embedding-ada-002'
             }
             {
               name: 'PORT'

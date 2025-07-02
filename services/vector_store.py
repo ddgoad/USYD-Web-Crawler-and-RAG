@@ -140,12 +140,18 @@ class VectorStoreService:
             embeddings = []
             batch_size = 10  # Process in batches to avoid rate limits
             
+            # Get embedding model deployment name from environment
+            embedding_deployment = os.getenv(
+                "AZURE_OPENAI_EMBEDDING_DEPLOYMENT",
+                "text-embedding-ada-002"
+            )
+            
             for i in range(0, len(texts), batch_size):
                 batch = texts[i:i + batch_size]
                 
                 response = self.openai_client.embeddings.create(
                     input=batch,
-                    model="text-embedding-3-small"  # Azure OpenAI embedding model
+                    model=embedding_deployment
                 )
                 
                 batch_embeddings = [item.embedding for item in response.data]

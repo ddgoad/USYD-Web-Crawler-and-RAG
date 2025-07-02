@@ -386,32 +386,9 @@ def delete_vector_database(db_id):
         logger.error(f"Error deleting vector database: {str(e)}")
         return jsonify({"error": "Failed to delete vector database"}), 500
 
-@app.route("/api/vector-dbs/cleanup", methods=["POST"])
-@login_required
-def cleanup_vector_databases():
-    """Clean up unused Azure Search indexes"""
-    try:
-        result = vector_service.cleanup_unused_indexes(current_user.id)
-        logger.info(f"Cleanup completed for user {current_user.username}: {result}")
-        return jsonify(result)
-    except Exception as e:
-        logger.error(f"Error during cleanup: {str(e)}")
-        return jsonify({"error": "Failed to cleanup indexes"}), 500
-
-@app.route("/api/vector-dbs/stats")
-@login_required
-def get_vector_database_stats():
-    """Get vector database and index usage statistics"""
-    try:
-        stats = vector_service.get_index_usage_stats()
-        logger.info(f"Index stats for user {current_user.username}: {stats}")
-        return jsonify(stats)
-    except Exception as e:
-        logger.error(f"Error getting stats: {str(e)}")
-        return jsonify({"error": "Failed to get statistics"}), 500
 
 @app.route("/api/vector-dbs/<db_id>/status")
-@login_required  
+@login_required
 def get_vector_database_status(db_id):
     """Get vector database creation status for non-blocking polling"""
     try:

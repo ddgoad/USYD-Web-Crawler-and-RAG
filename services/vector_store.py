@@ -83,7 +83,7 @@ class VectorStoreService:
                     name VARCHAR(255) NOT NULL,
                     description TEXT,
                     source_url VARCHAR(2048),
-                    index_name VARCHAR(255) UNIQUE NOT NULL,
+                    azure_index_name VARCHAR(255) UNIQUE NOT NULL,
                     scraping_job_id VARCHAR(36),
                     document_count INTEGER DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -413,7 +413,7 @@ class VectorStoreService:
             # Create vector database record
             cursor.execute("""
                 INSERT INTO vector_databases 
-                (id, user_id, job_id, name, source_url, azure_index_name, status)
+                (id, user_id, scraping_job_id, name, source_url, azure_index_name, status)
                 VALUES (%s, %s, %s, %s, %s, %s, %s);
             """, (db_id, user_id, scraping_job_id, name, job['url'], azure_index_name, 'building'))
             
@@ -458,10 +458,11 @@ class VectorStoreService:
             # Create vector database record
             cursor.execute("""
                 INSERT INTO vector_databases
-                (id, user_id, job_id, name, source_url, azure_index_name, status)
+                (id, user_id, scraping_job_id, name, source_url,
+                 azure_index_name, status)
                 VALUES (%s, %s, %s, %s, %s, %s, %s);
-            """, (db_id, user_id, scraping_job_id, name, job['url'], azure_index_name, 
-                  'building'))
+            """, (db_id, user_id, scraping_job_id, name, job['url'],
+                  azure_index_name, 'building'))
             
             conn.commit()
             cursor.close()
@@ -543,7 +544,7 @@ class VectorStoreService:
             if not db_record:
                 raise Exception("Vector database record not found")
             
-            azure_index_name = db_record['index_name']
+            azure_index_name = db_record['azure_index_name']
             logger.info(f"Processing data for Azure index: {azure_index_name}")
             
             # Create search client for this index

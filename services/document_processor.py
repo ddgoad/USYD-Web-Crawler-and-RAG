@@ -24,7 +24,22 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 
 # Azure Storage
-from azure.# Global singleton instance
+from azure.storage.blob import BlobServiceClient
+from azure.core.exceptions import AzureError
+
+# Document processing libraries
+import PyPDF2
+import pdfplumber
+import docx
+import markdown
+
+# File type detection
+import filetype
+import chardet
+
+logger = logging.getLogger(__name__)
+
+# Global singleton instance
 _document_processor_instance = None
 
 
@@ -47,20 +62,7 @@ try:
         document_processor = None
 except Exception as e:
     logger.error(f"Failed to initialize document processor: {e}")
-    document_processor = Noneport BlobServiceClient
-from azure.core.exceptions import AzureError
-
-# Document processing libraries
-import PyPDF2
-import pdfplumber
-import docx
-import markdown
-
-# File type detection
-import filetype
-import chardet
-
-logger = logging.getLogger(__name__)
+    document_processor = None
 
 class DocumentProcessingService:
     """Service for handling document upload, validation, and text extraction"""

@@ -26,6 +26,17 @@ resource resourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   tags: tags
 }
 
+// Storage Account for persistent data - moved up to be available for other modules
+module storage 'storage.bicep' = {
+  name: 'storage'
+  scope: resourceGroup
+  params: {
+    storageAccountName: 'st${resourceToken}'
+    location: location
+    tags: tags
+  }
+}
+
 // Container apps environment
 module containerAppsEnvironment 'container-apps-environment.bicep' = {
   name: 'container-apps-environment'
@@ -58,17 +69,6 @@ module redis 'redis.bicep' = {
   scope: resourceGroup
   params: {
     cacheName: '${abbrs.cacheRedis}${resourceToken}'
-    location: location
-    tags: tags
-  }
-}
-
-// Storage Account for persistent data
-module storage 'storage.bicep' = {
-  name: 'storage'
-  scope: resourceGroup
-  params: {
-    storageAccountName: 'st${resourceToken}'
     location: location
     tags: tags
   }
@@ -125,6 +125,7 @@ output RESOURCE_GROUP_ID string = resourceGroup.id
 // Service outputs
 output AZURE_OPENAI_ENDPOINT string = 'https://dgopenai2211200906498164.openai.azure.com/'
 output AZURE_SEARCH_ENDPOINT string = search.outputs.endpoint
+output AZURE_STORAGE_ACCOUNT_URL string = storage.outputs.storageAccountUrl
 output DATABASE_URL string = 'postgresql://[secret]@${database.outputs.serverFqdn}:5432/${database.outputs.databaseName}?sslmode=require'
 output REDIS_URL string = 'rediss://[secret]@${redis.outputs.redisHostName}:${redis.outputs.redisPort}/0'
 output WEB_URI string = containerApp.outputs.containerAppUrl

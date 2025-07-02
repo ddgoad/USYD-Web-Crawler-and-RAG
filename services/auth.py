@@ -388,7 +388,7 @@ class AuthService:
                         'id': db[0],
                         'name': db[1],
                         'source_url': db[2],
-                        'index_name': db[3],
+                        'azure_index_name': db[3],
                         'document_count': db[4],
                         'status': db[5],
                         'created_at': db[6]

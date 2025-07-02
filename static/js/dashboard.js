@@ -15,6 +15,7 @@ class Dashboard {
     
     init() {
         this.bindEvents();
+        this.initializeScrapingForm();
         this.loadInitialData();
         this.startPolling();
     }
@@ -145,17 +146,18 @@ class Dashboard {
             const result = await response.json();
             
             if (response.ok) {
-                this.showSuccessMessage('Scraping job started successfully!');
-                
-                // For single page scraping, don't show modal since it should be fast
+                // Show appropriate notification based on scraping type
                 if (scrapingType === 'single') {
                     this.showSuccessMessage('Single page scraping started - check the jobs list for status updates.');
                 } else {
-                    // Only show progress modal for deep crawling
+                    this.showSuccessMessage('Scraping job started successfully!');
+                    // Show progress modal for deep crawling and sitemap
                     this.showProgressModal(result.job_id);
                 }
                 
                 e.target.reset();
+                // Reset scraping options visibility to default
+                this.toggleScrapingOptions('single');
                 
                 // Reload jobs list immediately to show the new job
                 this.loadScrapingJobs();
@@ -849,6 +851,13 @@ class Dashboard {
                 '<strong>Warning:</strong> Low index quota! Consider cleaning up unused databases.' +
                 '</div>' : ''}
         `;
+    }
+    
+    initializeScrapingForm() {
+        // Set initial scraping type to 'single' and hide options
+        const scrapingTypeSelect = document.getElementById('scraping-type');
+        scrapingTypeSelect.value = 'single';
+        this.toggleScrapingOptions('single');
     }
 }
 

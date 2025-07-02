@@ -34,6 +34,24 @@
                     <!-- Scraping Form -->
                     <div class="section">
                         <h3>Start New Scraping Job</h3>
+                        
+                        <!-- User Instructions -->
+                        <div class="instructions-box">
+                            <div class="instructions-header">
+                                <i class="fas fa-info-circle"></i>
+                                <span>How to Use the Web Crawler</span>
+                            </div>
+                            <ul class="instructions-list">
+                                <li><strong>Single Page:</strong> Scrapes only the specified URL</li>
+                                <li><strong>Deep Crawl:</strong> Follows links to discover and scrape multiple pages (set depth & page limits)</li>
+                                <li><strong>Sitemap-based:</strong> Uses the website's sitemap.xml to find and scrape pages</li>
+                            </ul>
+                            <p class="instructions-note">
+                                <i class="fas fa-lightbulb"></i>
+                                <em>Tip: Start with Single Page to test, then use Deep Crawl or Sitemap for comprehensive scraping.</em>
+                            </p>
+                        </div>
+                        
                         <form id="scraping-form" class="scraping-form">
                             <div class="form-group">
                                 <label for="website-url">Website URL</label>
@@ -167,25 +185,26 @@
                     <div class="section" id="chat-section" style="display: none;">
                         <div class="chat-header">
                             <h3>AI Chat</h3>
-                            <div class="chat-controls" style="margin-top: 1rem;">
-                                <div class="control-group">
-                                    <label for="model-select">AI Model:</label>
-                                    <select id="model-select" title="Choose the AI model for chat responses">
-                                        <option value="gpt-4o">GPT-4o (Advanced reasoning and comprehensive responses)</option>
-                                        <option value="o3-mini">o3-mini (Fast, efficient responses)</option>
-                                    </select>
-                                </div>
-                                <div class="control-group">
-                                    <label for="search-type">Search Type:</label>
-                                    <select id="search-type" title="Choose how to search your content">
-                                        <option value="hybrid">Hybrid Search (Best balance)</option>
-                                        <option value="semantic">Semantic Search (Meaning-based)</option>
-                                        <option value="keyword">Keyword Search (Exact matches)</option>
-                                    </select>
-                                </div>
-                                <button id="close-chat-btn" class="close-btn" title="Close chat">
-                                    <i class="fas fa-times"></i>
-                                </button>
+                            <button id="close-chat-btn" class="close-btn" title="Close chat">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="chat-controls">
+                            <div class="control-group">
+                                <label for="model-select">AI Model:</label>
+                                <select id="model-select" title="Choose the AI model for chat responses">
+                                    <option value="gpt-4o">GPT-4o (Advanced reasoning and comprehensive responses)</option>
+                                    <option value="o3-mini">o3-mini (Fast, efficient responses)</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label for="search-type">Search Type:</label>
+                                <select id="search-type" title="Choose how to search your content">
+                                    <option value="hybrid">Hybrid Search (Best balance)</option>
+                                    <option value="semantic">Semantic Search (Meaning-based)</option>
+                                    <option value="keyword">Keyword Search (Exact matches)</option>
+                                </select>
                             </div>
                         </div>
                         

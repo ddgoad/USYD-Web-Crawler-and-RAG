@@ -674,13 +674,30 @@ class DocumentProcessingService:
             """)
             
             # Insert document job record
+            # Extract filename info from uploaded_files or create a summary
+            if 'uploaded_files' in file_metadata and file_metadata['uploaded_files']:
+                if len(file_metadata['uploaded_files']) == 1:
+                    filename = file_metadata['uploaded_files'][0]['filename']
+                    file_type = os.path.splitext(filename)[1].lower()
+                else:
+                    # Multiple files - create summary
+                    filenames = [f['filename'] for f in file_metadata['uploaded_files']]
+                    filename = f"Multiple files: {', '.join(filenames[:3])}" + ("..." if len(filenames) > 3 else "")
+                    file_type = "mixed"
+            else:
+                filename = "Unknown file"
+                file_type = "unknown"
+            
+            # File size is not available in current metadata structure
+            file_size = file_metadata.get('file_size', 0)
+            
             cursor.execute("""
                 INSERT INTO document_jobs 
                 (id, user_id, filename, file_size, file_type, azure_blob_url, chunk_count, metadata, status)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
             """, (
-                doc_job_id, user_id, file_metadata['filename'], 
-                file_metadata['file_size'], file_metadata['file_type'],
+                doc_job_id, user_id, filename, 
+                file_size, file_type,
                 file_metadata.get('azure_blob_url', ''), len(documents), 
                 json.dumps(file_metadata), 'completed'
             ))

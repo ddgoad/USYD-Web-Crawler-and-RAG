@@ -7,7 +7,7 @@
 
 ![Screenshot 2025-07-01 195748](https://github.com/user-attachments/assets/df0e601b-5b0b-48d7-bcd0-d19787e653ee)
 
-A comprehensive web application that enables users to scrape websites, convert content to vector databases, and interact with AI agents based on scraped content. Built with modern cloud-native architecture on Azure.
+A comprehensive web application that enables users to scrape websites, convert content to vector databases from multiple sources (uploaded and scrapped), and interact with AI agents based on scraped and uploaded content. Built with modern cloud-native architecture on Azure.
 
 ## 🌟 Features
 

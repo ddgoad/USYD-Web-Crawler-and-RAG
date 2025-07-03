@@ -10,7 +10,9 @@
 
 ![Screenshot 2025-07-01 195748](https://github.com/user-attachments/assets/df0e601b-5b0b-48d7-bcd0-d19787e653ee)
 
-A comprehensive web application that enables users to scrape websites, upload documents, create hybrid vector databases, and interact with AI agents using both web content and uploaded documents. Built with modern cloud-native architecture on Azure.  This application is intended to demonstrate the use of a number of techologies that can be used for student enquiry management at the university. 
+A comprehensive web application that enables users to scrape websites, upload documents, create hybrid vector databases, and interact with AI agents using both web content and uploaded documents. Built with modern cloud-native architecture on Azure.  
+
+** This application is intended to demonstrate the use of a number of techologies that can be used for student enquiry management at the university. **
 
  ** Live Demo Application**: [https://ca-jse4uas6q5opg.redsky-1ae1ed2e.australiaeast.azurecontainerapps.io/](https://ca-jse4uas6q5opg.redsky-1ae1ed2e.australiaeast.azurecontainerapps.io/)  (ask Dave for access! )
 

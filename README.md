@@ -467,9 +467,5 @@ This project is developed as part of the USYD Web Crawler and RAG solution. Plea
 - **Azure Cloud Platform** for comprehensive cloud infrastructure
 - **Open Source Community** for foundational technologies and libraries
 
----
 
-**🚀 Built with ❤️ for intelligent web content analysis and AI-powered knowledge discovery**
 
-**Live Demo**: [https://ca-jse4uas6q5opg.redsky-1ae1ed2e.australiaeast.azurecontainerapps.io/](https://ca-jse4uas6q5opg.redsky-1ae1ed2e.australiaeast.azurecontainerapps.io/)  
-**Login**: `admin` / `admin123`

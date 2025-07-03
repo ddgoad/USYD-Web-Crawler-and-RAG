@@ -12,7 +12,10 @@
 
 A comprehensive web application that enables users to scrape websites, upload documents, create hybrid vector databases, and interact with AI agents using both web content and uploaded documents. Built with modern cloud-native architecture on Azure.
 
-**🌐 Live Application**: [https://ca-jse4uas6q5opg.redsky-1ae1ed2e.australiaeast.azurecontainerapps.io/](https://ca-jse4uas6q5opg.redsky-1ae1ed2e.australiaeast.azurecontainerapps.io/)
+ ** Live Demo Application**: [https://ca-jse4uas6q5opg.redsky-1ae1ed2e.australiaeast.azurecontainerapps.io/](https://ca-jse4uas6q5opg.redsky-1ae1ed2e.australiaeast.azurecontainerapps.io/)  (ask Dave for access! )
+
+  **Architecture Questions**: Refer to [Technical Design Document](./TECHNICAL_DESIGN.md)
+
 
 ## 🌟 Features
 

@@ -34,6 +34,102 @@ The USYD Web Crawler and RAG (Retrieval-Augmented Generation) solution is a web 
 
 ## Solution Architecture Overview
 
+### Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                                USER INTERFACE                                       │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
+│  │   Login/Auth    │  │   Web Scraping  │  │   Vector DB     │  │   Chat/Query    │ │
+│  │   Dashboard     │  │   Configuration  │  │   Management    │  │   Interface     │ │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+                                         │
+                                    HTTP/WebSocket
+                                         │
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                              FLASK BACKEND API                                      │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
+│  │   Auth Service  │  │  Scraping API   │  │   Vector API    │  │    LLM API      │ │
+│  │   Session Mgmt  │  │   Job Mgmt      │  │   DB Creation   │  │   Chat Logic    │ │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+           │                       │                       │                       │
+           │                       │                       │                       │
+    ┌─────────────┐         ┌─────────────┐         ┌─────────────┐         ┌─────────────┐
+    │ PostgreSQL  │         │   Celery    │         │   Redis     │         │   Azure     │
+    │ Database    │         │  Workers    │         │   Cache     │         │  Services   │
+    │             │         │             │         │ Task Queue  │         │             │
+    │• Users      │         │• Async      │         │             │         │• OpenAI     │
+    │• Sessions   │         │  Scraping   │         │• Sessions   │         │• AI Search  │
+    │• Jobs       │         │• Vector DB  │         │• Progress   │         │• Blob Store │
+    │• Metadata   │         │  Creation   │         │  Tracking   │         │             │
+    └─────────────┘         │• Document   │         └─────────────┘         └─────────────┘
+                            │  Processing │
+                            └─────────────┘
+                                   │
+                            ┌─────────────┐
+                            │ Crawl4AI    │
+                            │ Web Scraper │
+                            │             │
+                            │• Single     │
+                            │  Page       │
+                            │• Deep Crawl │
+                            │• Sitemap    │
+                            └─────────────┘
+
+                    AZURE-ONLY VECTOR DATABASE ARCHITECTURE
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                          CONTENT PROCESSING PIPELINE                               │
+│                                                                                     │
+│  Web Content Sources          Document Upload Sources         Processing           │
+│  ┌─────────────────┐          ┌─────────────────┐             ┌─────────────────┐   │
+│  │   Single Page   │          │      PDF        │             │  Content        │   │
+│  │   Deep Crawl    │    +     │     Word        │      →      │  Chunking       │   │
+│  │   Sitemap       │          │   Markdown      │             │  Embedding      │   │
+│  └─────────────────┘          └─────────────────┘             └─────────────────┘   │
+│                                                                          │          │
+└──────────────────────────────────────────────────────────────────────────┼──────────┘
+                                                                           │
+                    ┌──────────────────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                              AZURE AI SEARCH                                       │
+│                                                                                     │
+│  Per-Job Dedicated Indexes:                                                        │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐   │
+│  │  usyd-rag-{user_id}-{timestamp}-{job_id}                                   │   │
+│  │                                                                             │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │   │
+│  │  │   Vector    │  │    Text     │  │  Metadata   │  │   Source    │        │   │
+│  │  │   Fields    │  │   Fields    │  │   Fields    │  │ Attribution │        │   │
+│  │  │             │  │             │  │             │  │             │        │   │
+│  │  │• Embeddings │  │• Content    │  │• Title      │  │• Web URL    │        │   │
+│  │  │• Semantic   │  │• Keywords   │  │• Created    │  │• Document   │        │   │
+│  │  │  Search     │  │• Full-text  │  │• Updated    │  │  Name       │        │   │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │   │
+│  └─────────────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+                                         │
+                                 Search Queries
+                                         │
+                                         ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                              AZURE OPENAI                                          │
+│                                                                                     │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐                    │
+│  │   Embedding     │  │     GPT-4o      │  │    o3-mini      │                    │
+│  │   Generation    │  │   Chat Model    │  │   Chat Model    │                    │
+│  │                 │  │                 │  │                 │                    │
+│  │• text-embed-3   │  │• Context-aware  │  │• Faster         │                    │
+│  │• Vector         │  │• Comprehensive  │  │• Cost-effective │                    │
+│  │  Creation       │  │• Responses      │  │• Responses      │                    │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘                    │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+```
+
 ### How the Components Work Together
 
 The USYD Web Crawler and RAG solution is designed as a multi-layered architecture where each component serves a specific purpose and integrates seamlessly with others to provide a complete user experience.

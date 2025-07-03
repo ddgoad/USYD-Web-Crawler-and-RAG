@@ -1,38 +1,77 @@
 # USYD Web Crawler and RAG Solution - Technical Design Document
 
-## Table of Contents
-1. [Project Overview](#project-overview)
-2. [Architecture Overview](#architecture-overview)
-3. [Technology Stack](#technology-stack)
-4. [System Requirements](#system-requirements)
-5. [Detailed Component Design](#detailed-component-design)
-6. [Database Schema](#database-schema)
-7. [API Design](#api-design)
-8. [User Interface Design](#user-interface-design)
-9. [Security Considerations](#security-considerations)
-10. [Testing Strategy](#testing-strategy)
-11. [Deployment Guide](#deployment-guide)
-12. [Infrastructure Requirements](#infrastructure-requirements)
-13. [Development Guidelines](#development-guidelines)
+## 📋 Table of Contents - Quick Navigation
+
+> **💡 Tip**: Click on any section below to jump directly to that part of the document
+
+### 🎯 **Getting Started**
+1. [**Project Overview**](#project-overview) - *Understanding the vision, purpose, and key features*
+2. [**Architecture Overview**](#architecture-overview) - *High-level system design and component interaction*
+
+### 🔧 **Technical Foundation**  
+3. [**Technology Stack**](#technology-stack) - *Core technologies, dependencies, and strategic choices*
+4. [**System Requirements**](#system-requirements) - *Functional and non-functional requirements framework*
+
+### 🏗️ **Implementation Details**
+5. [**Detailed Component Design**](#detailed-component-design) - *Service architecture and code structure*
+6. [**Database Schema**](#database-schema) - *Data models and PostgreSQL table definitions*
+7. [**API Design**](#api-design) - *RESTful endpoints and integration interfaces*
+
+### 🎨 **User Experience & Operations**
+8. [**User Interface Design**](#user-interface-design) - *Frontend design and user workflow*
+9. [**Security Considerations**](#security-considerations) - *Authentication, authorization, and data protection*
+
+### 🚀 **Deployment & Maintenance**
+10. [**Testing Strategy**](#testing-strategy) - *Quality assurance and validation approaches*
+11. [**Deployment Guide**](#deployment-guide) - *Azure deployment and configuration*
+12. [**Infrastructure Requirements**](#infrastructure-requirements) - *Resource allocation and scaling*
+13. [**Development Guidelines**](#development-guidelines) - *Coding standards and best practices*
+
+---
 
 ## Project Overview
+
+### Understanding the Vision
+
+In today's information-rich environment, organizations and individuals face a fundamental challenge: valuable knowledge exists in scattered digital silos. Critical insights might be distributed across company websites, buried in technical documentation, or spread across various online resources. Traditional approaches to information gathering require manual effort, time-consuming research, and often result in incomplete or fragmented understanding.
+
+The USYD Web Crawler and RAG solution addresses this challenge by creating an intelligent bridge between distributed information sources and actionable insights. Think of it as your personal research assistant that never gets tired, can process vast amounts of content simultaneously, and helps you discover connections between information that might otherwise remain hidden.
 
 ### Purpose
 The USYD Web Crawler and RAG (Retrieval-Augmented Generation) solution is a web application that enables users to scrape websites, convert the content into vector embeddings, and interact with the scraped content through an AI-powered chat interface.
 
+This system transforms the traditional approach to information discovery. Instead of manually browsing multiple websites, downloading documents, and trying to synthesize information in your head, you can point the system at relevant sources, let it intelligently process and organize the content, and then have natural language conversations with your assembled knowledge base. The result is faster research, more comprehensive insights, and the ability to ask complex questions that span multiple sources.
+
 ### Key Features
-- **Web Scraping**: Multiple scraping modes (single page, deep crawl, sitemap-based)
-- **Vector Database Management**: Automatic conversion of scraped content to vector embeddings
-- **AI Chat Interface**: Interactive Q&A using Azure OpenAI models
-- **User Management**: Simple authentication and session management
-- **Progress Tracking**: Real-time feedback on scraping and vectorization processes
-- **Multi-Model Support**: GPT-4o and o3-mini model options
-- **Flexible Search**: Keyword, semantic, and hybrid search capabilities
-- **Document Upload**: Support for PDF, Word, and Markdown file uploads
-- **Hybrid Content Sources**: Combine web scraped content with uploaded documents
-- **Document Processing Pipeline**: Automatic conversion and integration of various file formats
+
+The following capabilities work together to create a seamless information processing and discovery experience:
+- **Web Scraping**: Multiple scraping modes (single page, deep crawl, sitemap-based) - The system offers flexible approaches to content acquisition, from targeted single-page extraction for specific documents to comprehensive site exploration that discovers and processes entire knowledge domains.
+
+- **Vector Database Management**: Automatic conversion of scraped content to vector embeddings - Behind the scenes, advanced AI models transform raw text into mathematical representations that capture semantic meaning, enabling the system to understand context and relationships between different pieces of information.
+
+- **AI Chat Interface**: Interactive Q&A using Azure OpenAI models - Natural language conversations with your knowledge base, where you can ask complex questions, request summaries, or explore topics across all your collected sources.
+
+- **User Management**: Simple authentication and session management - Secure, personalized access ensures your knowledge bases remain private and accessible only to you.
+
+- **Progress Tracking**: Real-time feedback on scraping and vectorization processes - Stay informed about long-running operations without waiting or wondering about progress, maintaining productivity while content is being processed.
+
+- **Multi-Model Support**: GPT-4o and o3-mini model options - Choose between comprehensive analysis capabilities or faster, more efficient responses based on your specific needs.
+
+- **Flexible Search**: Keyword, semantic, and hybrid search capabilities - Find information using exact terms, conceptual similarity, or a combination of both approaches for maximum discovery potential.
+
+- **Document Upload**: Support for PDF, Word, and Markdown file uploads - Enhance your web-scraped content with proprietary documents, research papers, or internal documentation.
+
+- **Hybrid Content Sources**: Combine web scraped content with uploaded documents - Create comprehensive knowledge bases that merge public web information with private or specialized documents.
+
+- **Document Processing Pipeline**: Automatic conversion and integration of various file formats - Seamless handling of different document types, ensuring all your content sources work together regardless of their original format.
 
 ## Solution Architecture Overview
+
+### Architectural Philosophy: User-Centric Design Meets Enterprise Reliability
+
+The architecture of the USYD Web Crawler and RAG solution reflects a fundamental design philosophy: powerful capabilities should be accessible through simple, intuitive interfaces. This system bridges the gap between enterprise-grade infrastructure and user-friendly operation, ensuring that advanced AI and cloud technologies remain invisible to users while delivering exceptional performance and reliability.
+
+Every architectural decision prioritizes user experience while maintaining the scalability and security required for production environments. The result is a system that feels responsive and straightforward to use, even as it coordinates complex operations across multiple cloud services, manages large-scale content processing, and maintains real-time communication between various system components.
 
 ### Architecture Diagram
 
@@ -132,9 +171,14 @@ The USYD Web Crawler and RAG (Retrieval-Augmented Generation) solution is a web 
 
 ### How the Components Work Together
 
-The USYD Web Crawler and RAG solution is designed as a multi-layered architecture where each component serves a specific purpose and integrates seamlessly with others to provide a complete user experience.
+The USYD Web Crawler and RAG solution is designed as a multi-layered architecture where each component serves a specific purpose and integrates seamlessly with others to provide a complete user experience. This integration represents more than just technical connectivity—it creates a unified workflow that transforms scattered information into actionable intelligence.
+
+Understanding how these components interact reveals the sophisticated orchestration required to make complex operations feel simple and intuitive. From the moment a user initiates a web scraping job to the final AI-generated response, multiple services coordinate to ensure optimal performance, data quality, and user experience.
 
 #### **Frontend Layer - User Interface**
+
+The user interface serves as the primary touchpoint where users interact with powerful backend capabilities through carefully designed, intuitive controls. Rather than exposing the complexity of distributed systems, the interface presents a logical workflow that mirrors how users naturally think about information gathering and analysis.
+
 The user interface is built as a modern, responsive web application using Flask templates with HTML, CSS, and JavaScript. The interface is divided into two main functional areas:
 
 1. **Web Scraping Control Panel**: This section allows users to configure and initiate web scraping operations. Users can specify the target URL, choose scraping modes (single page, deep crawl, or sitemap-based), and set parameters like crawl depth and page limits. When a scraping job is initiated, the interface provides real-time progress feedback through WebSocket connections, showing users exactly what's happening as their content is being processed. Once scraping completes, users can see their completed jobs and manually choose to create vector databases from them.
@@ -144,9 +188,17 @@ The user interface is built as a modern, responsive web application using Flask 
 3. **Chat Interface**: Once vector databases are ready, users can select a specific database and interact with it through an AI-powered chat interface. The interface allows users to choose between different AI models (GPT-4o or o3-mini), adjust search parameters (semantic, keyword, or hybrid search), and modify AI behavior settings like temperature before beginning their query session. The AI can now answer questions using both scraped web content and uploaded documents seamlessly.
 
 #### **Backend API Layer - Business Logic**
+
 The Flask-based backend serves as the orchestration layer that coordinates all system components. It handles user authentication, manages scraping jobs, interfaces with Azure services, and provides RESTful API endpoints for the frontend. The backend is designed to be stateless and scalable, with session management handled through Redis for high availability.
 
+This orchestration layer represents the "intelligence" of the system—understanding user intentions, coordinating complex workflows, and ensuring that all components work together harmoniously. Think of it as a conductor leading a digital orchestra, where each service plays its part while the backend ensures perfect timing and coordination.
+
+The backend handles the complexity of distributed operations while presenting simple, reliable interfaces to both users and other system components. This includes managing long-running processes, handling errors gracefully, and ensuring that users always have visibility into system status without being overwhelmed by technical details.
+
 #### **Web Scraping Engine - Content Acquisition**
+
+The content acquisition layer represents where digital exploration begins. This isn't just about downloading web pages—it's about intelligent content discovery that understands the structure and purpose of different websites while respecting their policies and technical constraints.
+
 The scraping engine is built around Crawl4AI, a modern web scraping framework that handles JavaScript-heavy websites, respects robots.txt files, and provides intelligent content extraction. The engine operates in three distinct modes:
 
 - **Single Page Mode**: Extracts content from a specific URL, perfect for scraping individual articles, product pages, or documents
@@ -156,6 +208,11 @@ The scraping engine is built around Crawl4AI, a modern web scraping framework th
 The scraping process is asynchronous, using Celery workers to handle jobs in the background while providing real-time progress updates to users. This ensures the user interface remains responsive and users can continue using other parts of the application while scraping operations are running.
 
 #### **Content Processing Pipeline - Data Transformation**
+
+The transformation of raw web content into AI-ready information represents one of the most sophisticated aspects of the system. This pipeline addresses the fundamental challenge of making diverse, unstructured content discoverable and queryable through natural language interfaces.
+
+Content processing involves much more than simple text extraction. The system must understand document structure, preserve important relationships between different sections, identify and remove irrelevant content, and prepare information in formats optimized for AI analysis. This preparation work is crucial—poor content processing leads to poor AI responses, while high-quality processing enables accurate, insightful answers.
+
 Once content is scraped, it goes through a sophisticated processing pipeline:
 
 1. **Content Cleaning**: Raw HTML is processed to extract meaningful text, removing navigation elements, advertisements, and boilerplate content
@@ -164,6 +221,11 @@ Once content is scraped, it goes through a sophisticated processing pipeline:
 4. **Embedding Generation**: Text chunks are converted into high-dimensional vector representations using Azure OpenAI's embedding models
 
 #### **Document Processing Pipeline - Supplementary Content Integration**
+
+The document processing capability extends the system's reach beyond publicly available web content, enabling users to create comprehensive knowledge bases that combine external information with proprietary or specialized documents. This integration capability transforms the system from a web research tool into a complete knowledge management platform.
+
+Document processing presents unique challenges compared to web scraping. While web content follows relatively predictable HTML structures, documents can contain complex layouts, embedded objects, specialized formatting, and proprietary structures that require sophisticated extraction techniques. The system handles these challenges while maintaining the same quality standards applied to web content.
+
 To enhance the vector databases with additional context beyond web scraping, the system supports uploading and processing supplementary documents:
 
 1. **Document Upload and Storage**:
@@ -191,6 +253,11 @@ To enhance the vector databases with additional context beyond web scraping, the
    - **Progress Tracking**: Real-time status updates for document processing
 
 #### **Vector Database Layer - Intelligent Storage (Azure-Only Architecture)**
+
+The vector database layer represents where information transformation reaches its most sophisticated form. Here, human-readable text becomes mathematical representations that AI models can understand, compare, and reason about. This transformation enables semantic search capabilities that go far beyond simple keyword matching.
+
+The decision to use an Azure-only architecture for vector storage reflects both performance and reliability considerations. By leveraging Azure's global infrastructure, the system can scale to handle massive knowledge bases while ensuring enterprise-grade security and availability. This approach also eliminates the complexity and maintenance overhead of local vector databases.
+
 Azure AI Search serves as the exclusive vector database solution, with each scraping job resulting in the programmatic creation of a dedicated Azure AI Search index. This Azure-only architecture ensures all vector storage and processing occurs in the cloud, with no local or SQLite dependencies. Key characteristics:
 
 #### **Per-Job Index Creation**:
@@ -213,6 +280,11 @@ Azure AI Search serves as the exclusive vector database solution, with each scra
 - All search operations execute entirely within Azure infrastructure
 
 #### **AI Integration Layer - Intelligent Responses**
+
+The AI integration layer represents the culmination of all previous processing steps, where structured, searchable content transforms into conversational intelligence. This layer bridges the gap between information retrieval and human understanding, enabling natural language interactions with complex knowledge bases.
+
+The sophistication of this layer lies not just in its ability to generate human-like responses, but in its capacity to synthesize information from multiple sources, maintain conversation context, and provide transparent source attribution. Users can explore topics through natural conversation, asking follow-up questions and diving deeper into specific areas of interest.
+
 The AI layer uses Azure OpenAI services to provide intelligent responses to user queries. The system implements a Retrieval-Augmented Generation (RAG) approach:
 
 1. **Query Processing**: User questions are analyzed and converted into appropriate search queries
@@ -222,6 +294,11 @@ The AI layer uses Azure OpenAI services to provide intelligent responses to user
 5. **Source Attribution**: Responses include citations and links back to original sources
 
 #### **Background Processing - Scalable Operations**
+
+The background processing architecture represents a fundamental design principle: users should never wait for the system to complete complex operations. This principle drives the decision to handle all computationally intensive tasks asynchronously, ensuring that the user interface remains responsive regardless of the scale or complexity of ongoing operations.
+
+This asynchronous approach transforms how users interact with the system. Instead of starting a task and waiting for completion, users initiate operations and continue with other work while the system processes their requests in the background. Real-time progress updates keep users informed without blocking their workflow.
+
 All heavy computational tasks (web scraping, content processing, embedding generation, vector database creation) are handled by background workers using Celery and Redis. This architecture ensures:
 
 - **Non-Blocking Operations**: Both scraping and vector database creation run asynchronously without freezing the user interface
@@ -232,6 +309,11 @@ All heavy computational tasks (web scraping, content processing, embedding gener
 - **Progress Tracking**: Real-time status updates keep users informed of job progress without blocking the UI
 
 #### **Data Persistence - Reliable Storage**
+
+The data persistence layer provides the foundation for all system operations, storing not just user data but also the metadata and relationships that enable the system to function as a cohesive whole. This layer balances performance requirements with data integrity, ensuring that users never lose work while maintaining fast access to frequently needed information.
+
+The choice of PostgreSQL reflects the need for a robust, ACID-compliant database that can handle complex relationships between users, jobs, vector databases, and chat sessions. This relational structure enables sophisticated queries and ensures data consistency across all system operations.
+
 The system uses PostgreSQL for storing user data, job metadata, and application state. This includes:
 
 - **User Management**: Authentication credentials and user preferences
@@ -240,6 +322,11 @@ The system uses PostgreSQL for storing user data, job metadata, and application 
 - **Chat History**: Conversation logs for user reference and system improvement
 
 #### **Integration Flow - User-Initiated Multi-Step Azure-Only Process**
+
+The complete integration flow represents the user's journey from initial content identification through final AI-powered insights. This journey is carefully designed to provide users with control at each step while maintaining system efficiency and reliability. Understanding this flow helps users optimize their workflow and make the most of the system's capabilities.
+
+Each step in this process is designed to be intuitive and non-blocking, allowing users to work at their own pace while the system handles complex background operations. The Azure-only approach ensures that all heavy computational work happens in the cloud, providing unlimited scalability without local resource constraints.
+
 The complete user journey follows this user-controlled, multi-step Azure-only flow with asynchronous processing:
 
 1. **Authentication**: Users log in through the secure authentication system
@@ -269,23 +356,46 @@ This user-controlled, Azure-exclusive architecture ensures that all vector opera
 
 ## Technology Stack
 
+### Strategic Technology Choices: Balancing Innovation with Reliability
+
+The technology stack for the USYD Web Crawler and RAG solution reflects careful consideration of both current capabilities and future scalability requirements. Each technology choice serves specific purposes while contributing to an integrated ecosystem that prioritizes user experience, system reliability, and maintainability.
+
+The selection process emphasized proven technologies with strong community support, excellent documentation, and clear upgrade paths. This approach ensures that the system remains stable and supportable while leveraging cutting-edge capabilities in AI and cloud computing.
+
 ### Core Technologies
-- **Backend Framework**: Flask 3.0+
-- **Web Scraping**: Crawl4AI 0.3+
-- **Vector Database**: Azure AI Search
-- **LLM Provider**: Azure OpenAI
-- **Task Queue**: Celery with Redis
-- **Frontend**: HTML5, CSS3, JavaScript (ES6+)
-- **Database**: PostgreSQL (for user data and metadata)
-- **Caching**: Redis
-- **File Storage**: Azure Blob Storage
-- **Document Processing**: PyPDF2, python-docx, python-markdown
-- **Deployment**: Azure Container Apps with AZD
+
+These foundational technologies provide the backbone for all system operations, chosen for their reliability, performance characteristics, and ecosystem integration:
+- **Backend Framework**: Flask 3.0+ - Chosen for its simplicity, flexibility, and extensive ecosystem. Flask provides the lightweight foundation needed for rapid development while offering the extensibility required for complex integrations with Azure services.
+
+- **Web Scraping**: Crawl4AI 0.3+ - A next-generation scraping framework specifically designed for AI applications, offering intelligent content extraction and modern web compatibility that traditional scrapers cannot match.
+
+- **Vector Database**: Azure AI Search - Enterprise-grade search and vector storage that eliminates local infrastructure requirements while providing unlimited scalability and advanced search capabilities.
+
+- **LLM Provider**: Azure OpenAI - State-of-the-art language models with enterprise security, compliance, and reliability guarantees that support production deployment requirements.
+
+- **Task Queue**: Celery with Redis - Proven asynchronous processing infrastructure that enables responsive user interfaces while handling complex background operations reliably.
+
+- **Frontend**: HTML5, CSS3, JavaScript (ES6+) - Modern web standards that ensure broad compatibility while enabling rich, interactive user experiences.
+
+- **Database**: PostgreSQL (for user data and metadata) - Industry-standard relational database offering ACID compliance, complex query capabilities, and excellent performance characteristics.
+
+- **Caching**: Redis - High-performance in-memory data structure store providing session management, task queuing, and caching capabilities with microsecond latency.
+
+- **File Storage**: Azure Blob Storage - Globally distributed, highly available object storage for documents and temporary files with enterprise-grade security and access controls.
+
+- **Document Processing**: PyPDF2, python-docx, python-markdown - Specialized libraries for extracting content from various document formats while preserving structure and metadata.
+
+- **Deployment**: Azure Container Apps with AZD - Modern containerized deployment with automatic scaling, built-in monitoring, and simplified operations management.
 
 ### Python Dependencies
+
+The comprehensive dependency management approach ensures reliable, reproducible deployments while minimizing security vulnerabilities and compatibility issues. Dependencies are carefully versioned and regularly updated to maintain security and performance standards.
+
 The complete requirements.txt file includes all necessary dependencies organized by functionality. See the `requirements.txt` file in the project root for the comprehensive list of over 100 dependencies covering web scraping, AI integration, vector databases, testing, monitoring, and development tools.
 
 ### Enhanced Dependencies for Document Processing
+
+These specialized libraries enable sophisticated document processing capabilities that extend the system's reach beyond web content into proprietary and structured document formats:
 ```
 # Document Processing
 PyPDF2==3.0.1
@@ -308,48 +418,71 @@ validators==0.22.0
 
 ## System Requirements
 
+### Comprehensive Requirements Framework: Building for Scale and Usability
+
+The system requirements framework balances ambitious functional capabilities with practical operational constraints. These requirements guide not just what the system does, but how it behaves under various conditions, ensuring reliable performance whether serving a single user or supporting enterprise-scale deployments.
+
+Each requirement category addresses specific aspects of system behavior, from user-facing functionality to behind-the-scenes performance characteristics. This comprehensive approach ensures that the system delivers excellent user experiences while meeting the operational standards required for production environments.
+
 ### Functional Requirements
+
+These requirements define what users can accomplish with the system, representing the core value proposition and capabilities that differentiate this solution from simpler alternatives:
 1. **User Authentication**
-   - Simple login/logout functionality
-   - Session management
-   - User-specific data isolation
+   - Simple login/logout functionality - Streamlined access control that prioritizes ease of use while maintaining security standards appropriate for knowledge management applications.
+   - Session management - Persistent, secure sessions that remember user preferences and maintain access across browser sessions without compromising security.
+   - User-specific data isolation - Complete separation of user data ensuring privacy and security while enabling personalized experiences and configurations.
 
 2. **Web Scraping Module**
-   - Single page scraping
-   - Deep crawling with configurable depth
-   - Sitemap-based crawling
-   - Content filtering and cleaning
-   - Real-time progress tracking
+   - Single page scraping - Targeted content extraction perfect for specific documents, articles, or reference materials where precision matters more than breadth.
+   - Deep crawling with configurable depth - Systematic exploration of websites with intelligent link following that respects site structure while discovering comprehensive content.
+   - Sitemap-based crawling - Efficient bulk processing using XML sitemaps for comprehensive coverage of large sites with minimal resource usage.
+   - Content filtering and cleaning - Intelligent removal of navigation, advertisements, and boilerplate content while preserving meaningful information and document structure.
+   - Real-time progress tracking - Continuous visibility into scraping operations without blocking user workflow or requiring manual status checks.
 
 3. **Vector Database Management (Azure-Only)**
-   - Programmatic Azure AI Search index creation per scraping job
-   - Automatic text chunking and embedding via Azure OpenAI
-   - Vector storage exclusively in Azure AI Search indexes
-   - Metadata preservation and job-to-index mapping
-   - Azure-based search index management (no local vector storage)
-   - **Document Upload and Integration**: Support for supplementary documents (PDF, Word, Markdown)
-   - **Hybrid Content Processing**: Combine scraped web content with uploaded documents
-   - **Azure Storage Integration**: Secure document storage and processing pipeline
+   - Programmatic Azure AI Search index creation per scraping job - Automated infrastructure provisioning that creates dedicated, optimized search indexes without manual configuration.
+   - Automatic text chunking and embedding via Azure OpenAI - Intelligent content segmentation and vectorization that optimizes both search accuracy and AI response quality.
+   - Vector storage exclusively in Azure AI Search indexes - Cloud-native architecture eliminating local storage requirements while providing enterprise-grade scalability and reliability.
+   - Metadata preservation and job-to-index mapping - Comprehensive tracking of content sources, processing history, and relationships that enable advanced search and citation features.
+   - Azure-based search index management (no local vector storage) - Complete cloud-based operation eliminating local infrastructure complexity and maintenance requirements.
+   - **Document Upload and Integration**: Support for supplementary documents (PDF, Word, Markdown) - Seamless integration of proprietary or specialized content with web-scraped information.
+   - **Hybrid Content Processing**: Combine scraped web content with uploaded documents - Unified knowledge bases that merge public and private information sources.
+   - **Azure Storage Integration**: Secure document storage and processing pipeline - Enterprise-grade file handling with encryption, access controls, and audit trails.
 
 4. **Chat Interface**
-   - Real-time chat with AI models
-   - Context-aware responses
-   - Search result integration
-   - Conversation history
+   - Real-time chat with AI models - Natural language interactions that feel conversational while accessing sophisticated search and reasoning capabilities.
+   - Context-aware responses - AI that remembers conversation history and builds on previous exchanges for more natural, efficient interactions.
+   - Search result integration - Seamless connection between user questions and relevant content across all processed sources.
+   - Conversation history - Persistent records of interactions that enable users to return to previous insights and build on past work.
 
 5. **Configuration Management**
-   - LLM model selection
-   - Search type configuration
-   - Temperature and parameter tuning
+   - LLM model selection - Choice between different AI models optimized for various use cases, balancing speed, comprehensiveness, and cost considerations.
+   - Search type configuration - Flexible search strategies including keyword, semantic, and hybrid approaches for optimal information discovery.
+   - Temperature and parameter tuning - Fine-grained control over AI behavior enabling customization for different types of analysis and response styles.
 
 ### Non-Functional Requirements
-- **Performance**: Handle 100+ concurrent users
-- **Scalability**: Auto-scaling based on demand
-- **Reliability**: 99.9% uptime
-- **Security**: Secure data handling and authentication
-- **Usability**: Intuitive user interface
+
+These requirements define how the system behaves under various operational conditions, ensuring reliable performance and user satisfaction across different usage patterns and scales:
+
+- **Performance**: Handle 100+ concurrent users - System architecture and resource allocation designed to maintain responsive performance even under significant concurrent load, ensuring consistent user experience regardless of system utilization.
+
+- **Scalability**: Auto-scaling based on demand - Dynamic resource allocation that automatically adjusts to usage patterns, providing cost-effective operation during low usage while ensuring availability during peak demand periods.
+
+- **Reliability**: 99.9% uptime - Enterprise-grade availability standards with redundancy, monitoring, and recovery procedures that minimize service interruptions and ensure consistent access to knowledge bases.
+
+- **Security**: Secure data handling and authentication - Comprehensive security measures including encryption, access controls, audit logging, and compliance with data protection standards appropriate for sensitive information.
+
+- **Usability**: Intuitive user interface - Design principles that prioritize ease of use, clear navigation, and logical workflow progression, enabling users to accomplish complex tasks without extensive training or technical expertise.
 
 ## Detailed Component Design
+
+### Component Architecture Philosophy: Modular Excellence
+
+The detailed component design reflects a modular architecture where each service has clear responsibilities, well-defined interfaces, and minimal dependencies on other components. This approach enables independent development, testing, and scaling of different system parts while maintaining overall system coherence.
+
+Each component is designed as a self-contained service that can be understood, modified, and deployed independently. This modularity not only simplifies development and maintenance but also enables the system to evolve over time as requirements change and new technologies become available.
+
+The following components represent the core building blocks that work together to deliver the complete user experience:
 
 ### 1. Authentication Service (`auth.py`)
 ```python

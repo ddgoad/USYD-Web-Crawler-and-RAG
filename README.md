@@ -438,7 +438,6 @@ This repository contains a fully implemented and deployed USYD Web Crawler and R
 
 ### Application Support
 - **Live Application**: [https://ca-jse4uas6q5opg.redsky-1ae1ed2e.australiaeast.azurecontainerapps.io/](https://ca-jse4uas6q5opg.redsky-1ae1ed2e.australiaeast.azurecontainerapps.io/)
-- **Default Login**: Username: `admin`, Password: `admin123`
 - **Technical Issues**: Check [GitHub Issues](../../issues) for known problems
 - **Architecture Questions**: Refer to [Technical Design Document](./TECHNICAL_DESIGN.md)
 

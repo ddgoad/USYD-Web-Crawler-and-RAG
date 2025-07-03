@@ -154,7 +154,6 @@ The application follows a modern, scalable cloud-native architecture deployed en
 
 5. **Access the Application**
    - Use the URL provided by `azd up` command
-   - **Default credentials**: `admin` / `admin123`
    - **Live Demo**: [https://ca-jse4uas6q5opg.redsky-1ae1ed2e.australiaeast.azurecontainerapps.io/](https://ca-jse4uas6q5opg.redsky-1ae1ed2e.australiaeast.azurecontainerapps.io/)
 
 ### Local Development Setup

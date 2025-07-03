@@ -1230,6 +1230,1273 @@ The enhanced USYD Web Crawler and RAG solution now supports a hybrid content app
    - Upload internal policies, contracts, and compliance documents
    - Build comprehensive legal reference system
 
+## Data Ingestion Pipeline - Comprehensive Multi-Source Processing
+
+### Overview of Data Ingestion Architecture
+
+The USYD Web Crawler and RAG solution implements a sophisticated multi-source data ingestion pipeline that transforms diverse content sources into a unified, searchable knowledge base. Think of this system as a comprehensive content processing factory that takes raw materials from different sources—websites, PDF documents, Word files, and Markdown text—and converts them into a highly organized, AI-queryable database.
+
+At its core, the data ingestion pipeline addresses a fundamental challenge in modern information management: how to combine and make sense of content that exists in vastly different formats and locations. Whether you're a researcher trying to synthesize information from academic papers and web articles, a business analyst combining public market data with internal reports, or a developer integrating API documentation with internal guides, this pipeline ensures all your content sources work together seamlessly.
+
+The system operates on three key principles:
+
+**1. Universal Content Processing**: No matter where your content originates—a complex JavaScript-heavy website, a multi-page PDF report, or a structured Word document—the pipeline applies consistent processing techniques to extract, clean, and prepare the information for AI analysis.
+
+**2. Intelligent Source Attribution**: Every piece of processed content maintains a clear connection to its original source. When the AI provides an answer, you'll know exactly whether it came from a specific web page, a particular section of a PDF, or a chapter in a Word document.
+
+**3. Unified Search Experience**: Once processed, all content sources become part of a single, powerful search index. You can ask questions that span across web content and uploaded documents, finding connections and insights that would be impossible when working with isolated sources.
+
+The pipeline combines web scraping and document upload capabilities into a unified Azure AI Search index, ensuring that all content types are processed consistently while maintaining source attribution and enabling hybrid search capabilities across your entire knowledge base.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                            DATA INGESTION PIPELINE                                  │
+│                                                                                     │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐   │
+│  │                         INPUT DATA SOURCES                                  │   │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐              │   │
+│  │  │   Web Scraping  │  │   PDF Upload    │  │   Word Upload   │              │   │
+│  │  │   • Single Page │  │   • Multi-page  │  │   • Structured  │              │   │
+│  │  │   • Deep Crawl  │  │   • Images/Text │  │   • Rich Format │              │   │
+│  │  │   • Sitemap     │  │   • Metadata    │  │   • Properties  │              │   │
+│  │  └─────────────────┘  └─────────────────┘  └─────────────────┘              │   │
+│  │            │                    │                    │                       │   │
+│  └────────────┼────────────────────┼────────────────────┼───────────────────────┘   │
+│               │                    │                    │                           │
+│               ▼                    ▼                    ▼                           │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐   │
+│  │                    PREPROCESSING & VALIDATION                               │   │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐              │   │
+│  │  │  HTML Cleaning  │  │  Text Extract   │  │  Format Convert │              │   │
+│  │  │  Content Filter │  │  OCR Processing │  │  Structure Parse│              │   │
+│  │  │  URL Validation │  │  Size Limits    │  │  Metadata Read  │              │   │
+│  │  └─────────────────┘  └─────────────────┘  └─────────────────┘              │   │
+│  └─────────────────────────────────────────────────────────────────────────────┘   │
+│               │                    │                    │                           │
+│               ▼                    ▼                    ▼                           │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐   │
+│  │                     CONTENT PROCESSING                                      │   │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐              │   │
+│  │  │  Smart Chunking │  │  Metadata Enrich│  │  Source Attrib  │              │   │
+│  │  │  Semantic Split │  │  Quality Score  │  │  Content Type   │              │   │
+│  │  │  Size Optimize  │  │  Language Detect│  │  Origin Track   │              │   │
+│  │  └─────────────────┘  └─────────────────┘  └─────────────────┘              │   │
+│  └─────────────────────────────────────────────────────────────────────────────┘   │
+│                                      │                                             │
+│                                      ▼                                             │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐   │
+│  │                      EMBEDDING GENERATION                                   │   │
+│  │                    Azure OpenAI Integration                                 │   │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐              │   │
+│  │  │ text-embed-3-lg │  │  Batch Process  │  │  Vector Store   │              │   │
+│  │  │ 1536 dimensions │  │  Rate Limiting  │  │  Azure AI Search│              │   │
+│  │  │ Multi-language  │  │  Error Handling │  │  Index Creation │              │   │
+│  │  └─────────────────┘  └─────────────────┘  └─────────────────┘              │   │
+│  └─────────────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 1. Web Scraping Data Ingestion
+
+#### **Understanding the Web Scraping Challenge**
+
+Web scraping in the modern internet landscape is far more complex than simply downloading HTML pages. Today's websites are dynamic, interactive applications that load content through JavaScript, implement anti-bot measures, and structure information in countless different ways. The USYD Web Crawler tackles these challenges head-on by using intelligent scraping techniques that understand content context, respect website policies, and extract meaningful information rather than just raw HTML.
+
+The web scraping component serves as your automated research assistant, capable of systematically gathering information from websites at scale while maintaining ethical standards and producing high-quality, AI-ready content. Whether you need to monitor news sources, gather research from academic sites, or collect product information from e-commerce platforms, the scraping engine adapts to different website structures and content types.
+
+#### **Crawl4AI Integration and Content Extraction**
+
+The web scraping pipeline uses **Crawl4AI 0.3+**, a cutting-edge web scraping framework specifically designed for AI applications. Unlike traditional scraping tools that simply extract HTML, Crawl4AI understands content semantics, distinguishes between valuable information and website boilerplate (like navigation menus and advertisements), and produces clean, structured text that's optimized for AI processing.
+
+Think of Crawl4AI as an intelligent reading assistant that knows how to focus on the important parts of a web page. When it encounters a news article, it extracts the headline, author, publication date, and main content while ignoring sidebar advertisements and comment sections. When processing a technical documentation page, it preserves code examples, maintains formatting structure, and captures relevant metadata that helps with later retrieval.
+
+The framework's AI-aware design means it doesn't just scrape content—it prepares content for AI consumption. This includes:
+
+- **Semantic Content Detection**: Automatically identifying the main content areas of a page while filtering out navigation, advertisements, and irrelevant elements
+- **Structure Preservation**: Maintaining important formatting like headings, lists, and code blocks that provide context for AI understanding
+- **Content Quality Assessment**: Evaluating the information density and relevance of scraped content to prioritize high-value information
+- **Respectful Crawling**: Implementing delays, respecting robots.txt files, and following ethical scraping practices
+
+**Crawl4AI Configuration and Initialization:**
+```python
+from crawl4ai import WebCrawler
+from crawl4ai.extraction_strategy import LLMExtractionStrategy
+from crawl4ai.chunking_strategy import RegexChunking
+from celery import current_task
+
+class AdvancedScrapingService:
+    def __init__(self):
+        self.crawler = WebCrawler(
+            # Browser configuration for JavaScript support
+            headless=True,
+            browser_type="chromium",
+            viewport_size={"width": 1920, "height": 1080},
+            
+            # Content processing options
+            word_count_threshold=10,  # Minimum words per content block
+            extraction_strategy=LLMExtractionStrategy(
+                provider="openai",
+                api_token=os.getenv("AZURE_OPENAI_KEY"),
+                instruction="Extract main content, ignoring navigation, ads, and boilerplate"
+            ),
+            
+            # Chunking strategy for optimal embedding
+            chunking_strategy=RegexChunking(
+                patterns=[r'\n\n', r'\.\s+', r';\s+'],  # Natural text boundaries
+                max_length=1000,  # Optimal for embeddings
+                overlap=100       # Maintain context continuity
+            ),
+            
+            # Rate limiting and ethical scraping
+            delay_before_return_html=2.0,
+            semaphore_count=3,  # Concurrent request limit
+            user_agent="USYD-RAG-Crawler/1.0 (+https://university-contact)"
+        )
+        
+        self.content_filters = {
+            'remove_selectors': [
+                'nav', 'header', 'footer', '.advertisement', '.sidebar',
+                '.social-share', '.comments', '.related-posts'
+            ],
+            'content_selectors': [
+                'main', 'article', '.content', '.post-content', 
+                '.entry-content', 'section'
+            ]
+        }
+```
+
+#### **Three Intelligent Scraping Modes**
+
+The system offers three distinct scraping approaches, each optimized for different use cases and content discovery patterns:
+
+**1. Single Page Scraping - Precision Content Extraction**
+
+Single page scraping is perfect when you know exactly what you want—a specific research paper, a particular news article, or a detailed product description. This mode focuses all processing power on extracting maximum value from a single web page, ensuring that every relevant detail is captured and properly structured.
+
+The system treats each single page scraping job as a focused research task. It analyzes the page structure, identifies the most important content sections, and creates a comprehensive representation that includes not just the main text, but also metadata like publication dates, author information, and contextual elements that help with later retrieval and citation.
+
+This mode is particularly effective for:
+- **Academic Research**: Extracting specific papers, articles, or research findings
+- **News Monitoring**: Capturing detailed articles from news sources
+- **Documentation**: Processing specific API documentation pages or technical guides
+- **Product Analysis**: Gathering detailed information about specific products or services
+```python
+@celery.task(bind=True)
+def scrape_single_page(self, url: str, user_id: int, job_id: str) -> Dict:
+    """Extract content from a single web page with comprehensive processing"""
+    try:
+        # Update progress
+        self.update_state(state='PROGRESS', meta={'current': 0, 'total': 1, 'status': 'Starting'})
+        
+        # Configure crawler for single page
+        result = self.crawler.run(
+            url=url,
+            css_selector="main, article, .content",  # Target main content areas
+            exclude_external_links=True,
+            extract_media=True,  # Include image alt text and captions
+            generate_summary=True,
+            word_count_threshold=50
+        )
+        
+        # Process extracted content
+        processed_content = {
+            'url': url,
+            'title': result.metadata.get('title', ''),
+            'content': result.extracted_content,
+            'summary': result.summary,
+            'word_count': len(result.extracted_content.split()),
+            'links': result.links,
+            'media': result.media,
+            'metadata': {
+                'scraping_type': 'single_page',
+                'scraped_at': datetime.utcnow().isoformat(),
+                'content_language': result.metadata.get('language', 'en'),
+                'content_quality_score': calculate_content_quality(result.extracted_content),
+                'source_type': 'web_scraping',
+                'user_id': user_id,
+                'job_id': job_id
+            }
+        }
+        
+        # Update progress
+        self.update_state(state='PROGRESS', meta={'current': 1, 'total': 1, 'status': 'Completed'})
+        
+        return processed_content
+        
+    except Exception as e:
+        self.update_state(state='FAILURE', meta={'error': str(e)})
+        raise
+```
+
+2. **Deep Crawl Scraping:**
+```python
+@celery.task(bind=True)
+def scrape_website_deep(self, base_url: str, max_depth: int, max_pages: int, user_id: int, job_id: str) -> Dict:
+    """Systematically crawl website following internal links"""
+    try:
+        visited_urls = set()
+        scraped_content = []
+        url_queue = [(base_url, 0)]  # (url, depth)
+        
+        while url_queue and len(scraped_content) < max_pages:
+            current_url, depth = url_queue.pop(0)
+            
+            if current_url in visited_urls or depth > max_depth:
+                continue
+                
+            # Update progress
+            progress = len(scraped_content) / max_pages * 100
+            self.update_state(
+                state='PROGRESS', 
+                meta={
+                    'current': len(scraped_content), 
+                    'total': max_pages, 
+                    'status': f'Scraping: {current_url}',
+                    'progress': progress
+                }
+            )
+            
+            # Scrape current page
+            result = self.crawler.run(
+                url=current_url,
+                css_selector="main, article, .content",
+                extract_links=True,
+                follow_links=True if depth < max_depth else False,
+                exclude_external_links=True
+            )
+            
+            if result.success and result.extracted_content:
+                page_content = {
+                    'url': current_url,
+                    'title': result.metadata.get('title', ''),
+                    'content': result.extracted_content,
+                    'depth': depth,
+                    'word_count': len(result.extracted_content.split()),
+                    'metadata': {
+                        'scraping_type': 'deep_crawl',
+                        'scraped_at': datetime.utcnow().isoformat(),
+                        'crawl_depth': depth,
+                        'parent_url': base_url,
+                        'content_quality_score': calculate_content_quality(result.extracted_content),
+                        'source_type': 'web_scraping',
+                        'user_id': user_id,
+                        'job_id': job_id
+                    }
+                }
+                scraped_content.append(page_content)
+                visited_urls.add(current_url)
+                
+                # Add internal links to queue for deeper crawling
+                if depth < max_depth:
+                    for link in result.links.get('internal', []):
+                        if link not in visited_urls:
+                            url_queue.append((link, depth + 1))
+        
+        return {
+            'pages_scraped': len(scraped_content),
+            'content': scraped_content,
+            'crawl_summary': {
+                'base_url': base_url,
+                'max_depth_reached': max([item['depth'] for item in scraped_content]),
+                'total_pages': len(scraped_content),
+                'total_words': sum([item['word_count'] for item in scraped_content])
+            }
+        }
+        
+    except Exception as e:
+        self.update_state(state='FAILURE', meta={'error': str(e)})
+        raise
+```
+
+3. **Sitemap-Based Scraping:**
+```python
+@celery.task(bind=True)
+def scrape_from_sitemap(self, sitemap_url: str, max_pages: int, user_id: int, job_id: str) -> Dict:
+    """Efficiently scrape using XML sitemap discovery"""
+    try:
+        # Parse sitemap XML
+        sitemap_urls = self.parse_sitemap(sitemap_url)
+        
+        # Prioritize URLs by lastmod date and priority
+        prioritized_urls = self.prioritize_sitemap_urls(sitemap_urls, max_pages)
+        
+        scraped_content = []
+        
+        for i, url_info in enumerate(prioritized_urls):
+            url = url_info['url']
+            
+            # Update progress
+            progress = i / len(prioritized_urls) * 100
+            self.update_state(
+                state='PROGRESS',
+                meta={
+                    'current': i,
+                    'total': len(prioritized_urls),
+                    'status': f'Scraping from sitemap: {url}',
+                    'progress': progress
+                }
+            )
+            
+            result = self.crawler.run(
+                url=url,
+                css_selector="main, article, .content",
+                extract_media=True,
+                generate_summary=True
+            )
+            
+            if result.success and result.extracted_content:
+                page_content = {
+                    'url': url,
+                    'title': result.metadata.get('title', ''),
+                    'content': result.extracted_content,
+                    'word_count': len(result.extracted_content.split()),
+                    'sitemap_info': url_info,
+                    'metadata': {
+                        'scraping_type': 'sitemap',
+                        'scraped_at': datetime.utcnow().isoformat(),
+                        'sitemap_priority': url_info.get('priority', 0.5),
+                        'last_modified': url_info.get('lastmod', ''),
+                        'content_quality_score': calculate_content_quality(result.extracted_content),
+                        'source_type': 'web_scraping',
+                        'user_id': user_id,
+                        'job_id': job_id
+                    }
+                }
+                scraped_content.append(page_content)
+        
+        return {
+            'sitemap_url': sitemap_url,
+            'pages_found': len(sitemap_urls),
+            'pages_scraped': len(scraped_content),
+            'content': scraped_content
+        }
+        
+    except Exception as e:
+        self.update_state(state='FAILURE', meta={'error': str(e)})
+        raise
+
+def parse_sitemap(self, sitemap_url: str) -> List[Dict]:
+    """Parse XML sitemap and extract URL information"""
+    import xml.etree.ElementTree as ET
+    import requests
+    
+    response = requests.get(sitemap_url)
+    root = ET.fromstring(response.content)
+    
+    urls = []
+    for url_elem in root.findall('.//{http://www.sitemaps.org/schemas/sitemap/0.9}url'):
+        url_data = {
+            'url': url_elem.find('{http://www.sitemaps.org/schemas/sitemap/0.9}loc').text,
+            'lastmod': url_elem.find('{http://www.sitemaps.org/schemas/sitemap/0.9}lastmod'),
+            'priority': url_elem.find('{http://www.sitemaps.org/schemas/sitemap/0.9}priority')
+        }
+        urls.append(url_data)
+    
+    return urls
+```
+
+**Content Quality Assessment:**
+```python
+def calculate_content_quality(content: str) -> float:
+    """Assess content quality for better prioritization in embeddings"""
+    if not content:
+        return 0.0
+    
+    # Quality metrics
+    word_count = len(content.split())
+    sentence_count = content.count('.') + content.count('!') + content.count('?')
+    paragraph_count = content.count('\n\n') + 1
+    
+    # Quality scoring
+    quality_score = 0.0
+    
+    # Word count score (optimal range: 100-2000 words)
+    if 100 <= word_count <= 2000:
+        quality_score += 0.3
+    elif 50 <= word_count < 100 or 2000 < word_count <= 5000:
+        quality_score += 0.2
+    
+    # Sentence structure score
+    if sentence_count > 0:
+        avg_words_per_sentence = word_count / sentence_count
+        if 10 <= avg_words_per_sentence <= 25:  # Good readability
+            quality_score += 0.2
+    
+    # Content structure score
+    if paragraph_count > 1:
+        quality_score += 0.2
+    
+    # Content diversity score (check for varied vocabulary)
+    unique_words = len(set(content.lower().split()))
+    vocabulary_ratio = unique_words / word_count if word_count > 0 else 0
+    if vocabulary_ratio > 0.3:  # Good vocabulary diversity
+        quality_score += 0.3
+    
+    return min(quality_score, 1.0)
+```
+
+### 2. Document Upload Data Ingestion
+
+#### **Multi-Format Document Processing Pipeline**
+
+The document processing system handles PDF, Word (.docx), and Markdown files through a comprehensive extraction and normalization pipeline.
+
+**Azure Blob Storage Integration:**
+```python
+from azure.storage.blob import BlobServiceClient
+from azure.core.exceptions import AzureError
+import PyPDF2
+import docx
+import markdown
+import tempfile
+import os
+
+class EnhancedDocumentProcessor:
+    def __init__(self):
+        self.blob_service_client = BlobServiceClient(
+            account_url=os.getenv("AZURE_STORAGE_ACCOUNT_URL"),
+            credential=os.getenv("AZURE_STORAGE_KEY")
+        )
+        self.container_name = "user-documents"
+        
+        # Document processing limits
+        self.max_file_size = 50 * 1024 * 1024  # 50MB
+        self.supported_formats = ['.pdf', '.docx', '.md', '.markdown']
+        
+    @celery.task(bind=True)
+    def process_document_upload(self, blob_name: str, user_id: int, vector_db_id: str) -> Dict:
+        """Comprehensive document processing with content extraction"""
+        try:
+            # Update progress
+            self.update_state(state='PROGRESS', meta={'current': 0, 'total': 4, 'status': 'Downloading document'})
+            
+            # Download from Azure Blob Storage
+            blob_client = self.blob_service_client.get_blob_client(
+                container=self.container_name,
+                blob=blob_name
+            )
+            
+            # Create temporary file for processing
+            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(blob_name)[1]) as temp_file:
+                download_stream = blob_client.download_blob()
+                temp_file.write(download_stream.readall())
+                temp_file_path = temp_file.name
+            
+            # Update progress
+            self.update_state(state='PROGRESS', meta={'current': 1, 'total': 4, 'status': 'Extracting content'})
+            
+            # Determine file type and extract content
+            file_extension = os.path.splitext(blob_name)[1].lower()
+            filename = os.path.basename(blob_name)
+            
+            if file_extension == '.pdf':
+                content, metadata = self.extract_pdf_content(temp_file_path, filename)
+            elif file_extension == '.docx':
+                content, metadata = self.extract_docx_content(temp_file_path, filename)
+            elif file_extension in ['.md', '.markdown']:
+                content, metadata = self.extract_markdown_content(temp_file_path, filename)
+            else:
+                raise ValueError(f"Unsupported file format: {file_extension}")
+            
+            # Update progress
+            self.update_state(state='PROGRESS', meta={'current': 2, 'total': 4, 'status': 'Processing content'})
+            
+            # Enhance metadata
+            metadata.update({
+                'blob_name': blob_name,
+                'user_id': user_id,
+                'vector_db_id': vector_db_id,
+                'processed_at': datetime.utcnow().isoformat(),
+                'content_length': len(content),
+                'word_count': len(content.split()),
+                'source_type': 'uploaded_document',
+                'content_quality_score': calculate_content_quality(content)
+            })
+            
+            # Update progress
+            self.update_state(state='PROGRESS', meta={'current': 3, 'total': 4, 'status': 'Creating chunks'})
+            
+            # Create optimized chunks for embedding
+            chunks = self.create_document_chunks(content, metadata)
+            
+            # Clean up temporary file
+            os.unlink(temp_file_path)
+            
+            # Update progress
+            self.update_state(state='PROGRESS', meta={'current': 4, 'total': 4, 'status': 'Completed'})
+            
+            return {
+                'filename': filename,
+                'content': content,
+                'metadata': metadata,
+                'chunks': chunks,
+                'chunk_count': len(chunks)
+            }
+            
+        except Exception as e:
+            # Clean up on error
+            if 'temp_file_path' in locals():
+                try:
+                    os.unlink(temp_file_path)
+                except:
+                    pass
+            self.update_state(state='FAILURE', meta={'error': str(e)})
+            raise
+```
+
+**PDF Content Extraction:**
+```python
+def extract_pdf_content(self, file_path: str, filename: str) -> Tuple[str, Dict]:
+    """Advanced PDF content extraction with structure preservation"""
+    try:
+        import pdfplumber  # More robust than PyPDF2 for complex layouts
+        
+        text_content = ""
+        page_contents = []
+        metadata = {
+            'source_type': 'pdf_document',
+            'filename': filename,
+            'extraction_method': 'pdfplumber'
+        }
+        
+        with pdfplumber.open(file_path) as pdf:
+            metadata.update({
+                'page_count': len(pdf.pages),
+                'pdf_metadata': pdf.metadata or {}
+            })
+            
+            # Extract text from each page with structure
+            for page_num, page in enumerate(pdf.pages, 1):
+                # Extract text while preserving structure
+                page_text = page.extract_text(
+                    x_tolerance=3,      # Horizontal character spacing
+                    y_tolerance=3,      # Vertical line spacing
+                    layout=True,        # Preserve layout
+                    x_density=7.25,     # Characters per inch horizontally
+                    y_density=13        # Characters per inch vertically
+                )
+                
+                if page_text:
+                    # Add page markers for better chunking
+                    page_content = f"\n--- Page {page_num} ---\n{page_text.strip()}"
+                    page_contents.append(page_content)
+                    text_content += page_content + "\n"
+                
+                # Extract tables if present
+                tables = page.extract_tables()
+                if tables:
+                    for i, table in enumerate(tables):
+                        table_text = self.convert_table_to_text(table, page_num, i)
+                        text_content += f"\n--- Table {i+1} on Page {page_num} ---\n{table_text}\n"
+        
+        # Add structure analysis
+        metadata.update({
+            'has_tables': any('Table' in content for content in page_contents),
+            'avg_page_length': len(text_content) / metadata['page_count'] if metadata['page_count'] > 0 else 0,
+            'structure_type': self.analyze_document_structure(text_content)
+        })
+        
+        return text_content.strip(), metadata
+        
+    except Exception as e:
+        # Fallback to PyPDF2 if pdfplumber fails
+        return self.extract_pdf_content_fallback(file_path, filename)
+
+def convert_table_to_text(self, table: List[List], page_num: int, table_num: int) -> str:
+    """Convert extracted table to readable text format"""
+    if not table or not table[0]:
+        return ""
+    
+    # Find maximum column widths for alignment
+    col_widths = [max(len(str(cell)) for cell in col if cell) for col in zip(*table)]
+    
+    # Format table as text
+    formatted_rows = []
+    for row in table:
+        formatted_row = " | ".join(
+            str(cell).ljust(width) if cell else "".ljust(width)
+            for cell, width in zip(row, col_widths)
+        )
+        formatted_rows.append(formatted_row)
+    
+    # Add separator line after header
+    if len(formatted_rows) > 1:
+        separator = " | ".join("-" * width for width in col_widths)
+        formatted_rows.insert(1, separator)
+    
+    return "\n".join(formatted_rows)
+```
+
+**Word Document Processing:**
+```python
+def extract_docx_content(self, file_path: str, filename: str) -> Tuple[str, Dict]:
+    """Advanced Word document processing with structure preservation"""
+    try:
+        doc = docx.Document(file_path)
+        text_content = ""
+        metadata = {
+            'source_type': 'word_document',
+            'filename': filename,
+            'extraction_method': 'python-docx'
+        }
+        
+        # Extract document properties
+        if hasattr(doc, 'core_properties'):
+            props = doc.core_properties
+            metadata.update({
+                'title': props.title or '',
+                'author': props.author or '',
+                'subject': props.subject or '',
+                'created': str(props.created) if props.created else '',
+                'modified': str(props.modified) if props.modified else '',
+                'keywords': props.keywords or ''
+            })
+        
+        # Process document structure
+        paragraph_count = 0
+        table_count = 0
+        heading_count = 0
+        
+        for element in doc.element.body:
+            if element.tag.endswith('p'):  # Paragraph
+                para = docx.text.paragraph.Paragraph(element, doc)
+                if para.text.strip():
+                    paragraph_count += 1
+                    
+                    # Check if it's a heading
+                    if para.style.name.startswith('Heading'):
+                        heading_count += 1
+                        text_content += f"\n## {para.text.strip()}\n"
+                    else:
+                        text_content += para.text.strip() + "\n"
+                        
+            elif element.tag.endswith('tbl'):  # Table
+                table_count += 1
+                table = docx.table.Table(element, doc)
+                table_text = self.extract_docx_table(table, table_count)
+                text_content += f"\n--- Table {table_count} ---\n{table_text}\n"
+        
+        # Add structure metadata
+        metadata.update({
+            'paragraph_count': paragraph_count,
+            'table_count': table_count,
+            'heading_count': heading_count,
+            'has_structure': heading_count > 0 or table_count > 0,
+            'structure_type': self.analyze_document_structure(text_content)
+        })
+        
+        return text_content.strip(), metadata
+        
+    except Exception as e:
+        raise Exception(f"Failed to extract Word document content: {str(e)}")
+
+def extract_docx_table(self, table, table_num: int) -> str:
+    """Extract and format table content from Word document"""
+    table_data = []
+    
+    for row in table.rows:
+        row_data = []
+        for cell in row.cells:
+            # Clean cell text
+            cell_text = cell.text.strip().replace('\n', ' ')
+            row_data.append(cell_text)
+        table_data.append(row_data)
+    
+    if not table_data:
+        return ""
+    
+    # Format as text table
+    col_widths = [max(len(cell) for cell in col) for col in zip(*table_data)]
+    
+    formatted_rows = []
+    for i, row in enumerate(table_data):
+        formatted_row = " | ".join(
+            cell.ljust(width) for cell, width in zip(row, col_widths)
+        )
+        formatted_rows.append(formatted_row)
+        
+        # Add separator after header row
+        if i == 0 and len(table_data) > 1:
+            separator = " | ".join("-" * width for width in col_widths)
+            formatted_rows.append(separator)
+    
+    return "\n".join(formatted_rows)
+```
+
+**Markdown Processing:**
+```python
+def extract_markdown_content(self, file_path: str, filename: str) -> Tuple[str, Dict]:
+    """Process Markdown files with frontmatter and structure analysis"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            content = file.read()
+        
+        metadata = {
+            'source_type': 'markdown_document',
+            'filename': filename,
+            'extraction_method': 'python-markdown'
+        }
+        
+        # Parse frontmatter if present
+        frontmatter_data = {}
+        if content.startswith('---'):
+            try:
+                import yaml
+                parts = content.split('---', 2)
+                if len(parts) >= 3:
+                    frontmatter_data = yaml.safe_load(parts[1])
+                    content = parts[2].strip()
+            except:
+                pass  # Continue without frontmatter if parsing fails
+        
+        metadata.update(frontmatter_data)
+        
+        # Analyze Markdown structure
+        heading_count = content.count('#')
+        code_block_count = content.count('```')
+        link_count = content.count('[')
+        image_count = content.count('![')
+        
+        metadata.update({
+            'heading_count': heading_count,
+            'code_block_count': code_block_count // 2,  # Pairs of ```
+            'link_count': link_count,
+            'image_count': image_count,
+            'has_structure': heading_count > 0,
+            'content_type': 'technical' if code_block_count > 0 else 'general',
+            'structure_type': self.analyze_document_structure(content)
+        })
+        
+        return content.strip(), metadata
+        
+    except Exception as e:
+        raise Exception(f"Failed to extract Markdown content: {str(e)}")
+
+def analyze_document_structure(self, content: str) -> str:
+    """Analyze document structure to optimize chunking strategy"""
+    if not content:
+        return 'empty'
+    
+    # Check for various structure indicators
+    has_headings = any(line.strip().startswith('#') for line in content.split('\n'))
+    has_lists = any(line.strip().startswith(('- ', '* ', '1.')) for line in content.split('\n'))
+    has_code = '```' in content or '    ' in content
+    has_tables = '|' in content and '-' in content
+    
+    paragraph_count = content.count('\n\n') + 1
+    avg_paragraph_length = len(content) / paragraph_count if paragraph_count > 0 else 0
+    
+    if has_code and has_headings:
+        return 'technical_documentation'
+    elif has_tables and has_headings:
+        return 'structured_report'
+    elif has_headings and paragraph_count > 5:
+        return 'article_or_guide'
+    elif avg_paragraph_length > 500:
+        return 'narrative_text'
+    elif has_lists:
+        return 'procedural_content'
+    else:
+        return 'general_content'
+```
+
+### 3. Unified Content Chunking and Processing
+
+#### **Intelligent Chunking Strategy**
+
+Both web scraped content and uploaded documents go through a unified chunking process optimized for embedding generation and retrieval.
+
+```python
+class UnifiedContentChunker:
+    def __init__(self):
+        self.chunk_size = 1000  # Base chunk size in characters
+        self.chunk_overlap = 200  # Overlap for context continuity
+        self.min_chunk_size = 100  # Minimum viable chunk size
+        
+    def create_document_chunks(self, content: str, metadata: Dict) -> List[Dict]:
+        """Create optimized chunks based on content type and structure"""
+        structure_type = metadata.get('structure_type', 'general_content')
+        
+        # Choose chunking strategy based on content type
+        if structure_type == 'technical_documentation':
+            chunks = self.chunk_technical_content(content, metadata)
+        elif structure_type == 'structured_report':
+            chunks = self.chunk_structured_content(content, metadata)
+        elif structure_type in ['article_or_guide', 'narrative_text']:
+            chunks = self.chunk_narrative_content(content, metadata)
+        else:
+            chunks = self.chunk_general_content(content, metadata)
+        
+        # Post-process chunks
+        processed_chunks = []
+        for i, chunk in enumerate(chunks):
+            chunk_metadata = metadata.copy()
+            chunk_metadata.update({
+                'chunk_index': i,
+                'chunk_size': len(chunk['content']),
+                'total_chunks': len(chunks),
+                'chunk_id': f"{metadata.get('job_id', 'doc')}_{i}",
+                'chunk_type': self.classify_chunk_content(chunk['content'])
+            })
+            
+            processed_chunk = {
+                'id': chunk_metadata['chunk_id'],
+                'content': chunk['content'],
+                'title': chunk.get('title', f"{metadata.get('filename', 'Content')} - Part {i+1}"),
+                'metadata': chunk_metadata,
+                'source_url': metadata.get('source_url', metadata.get('blob_name', '')),
+                'source_type': metadata.get('source_type', 'unknown')
+            }
+            processed_chunks.append(processed_chunk)
+        
+        return processed_chunks
+    
+    def chunk_technical_content(self, content: str, metadata: Dict) -> List[Dict]:
+        """Specialized chunking for technical documentation"""
+        chunks = []
+        lines = content.split('\n')
+        current_chunk = []
+        current_size = 0
+        current_section = ""
+        
+        for line in lines:
+            line_clean = line.strip()
+            
+            # Detect section headers
+            if line_clean.startswith('#'):
+                # Finish current chunk if it has content
+                if current_chunk and current_size > self.min_chunk_size:
+                    chunks.append({
+                        'content': '\n'.join(current_chunk),
+                        'title': current_section,
+                        'section_type': 'content'
+                    })
+                
+                # Start new chunk with header
+                current_section = line_clean.lstrip('#').strip()
+                current_chunk = [line]
+                current_size = len(line)
+                
+            # Detect code blocks
+            elif line_clean.startswith('```'):
+                # Keep code blocks together
+                code_block = [line]
+                code_size = len(line)
+                
+                # Read until end of code block
+                for next_line in lines[lines.index(line)+1:]:
+                    code_block.append(next_line)
+                    code_size += len(next_line)
+                    if next_line.strip().startswith('```'):
+                        break
+                
+                # If adding code block would exceed size, finish current chunk
+                if current_size + code_size > self.chunk_size and current_chunk:
+                    chunks.append({
+                        'content': '\n'.join(current_chunk),
+                        'title': current_section,
+                        'section_type': 'content'
+                    })
+                    current_chunk = []
+                    current_size = 0
+                
+                current_chunk.extend(code_block)
+                current_size += code_size
+                
+            else:
+                # Regular content
+                if current_size + len(line) > self.chunk_size and current_chunk:
+                    chunks.append({
+                        'content': '\n'.join(current_chunk),
+                        'title': current_section,
+                        'section_type': 'content'
+                    })
+                    # Start new chunk with overlap
+                    overlap_lines = current_chunk[-5:] if len(current_chunk) > 5 else current_chunk
+                    current_chunk = overlap_lines + [line]
+                    current_size = sum(len(l) for l in current_chunk)
+                else:
+                    current_chunk.append(line)
+                    current_size += len(line)
+        
+        # Add final chunk
+        if current_chunk and current_size > self.min_chunk_size:
+            chunks.append({
+                'content': '\n'.join(current_chunk),
+                'title': current_section,
+                'section_type': 'content'
+            })
+        
+        return chunks
+    
+    def chunk_narrative_content(self, content: str, metadata: Dict) -> List[Dict]:
+        """Specialized chunking for narrative/article content"""
+        # Split by paragraphs first
+        paragraphs = content.split('\n\n')
+        chunks = []
+        current_chunk = []
+        current_size = 0
+        
+        for para in paragraphs:
+            para_size = len(para)
+            
+            # If single paragraph is too large, split by sentences
+            if para_size > self.chunk_size:
+                sentences = self.split_by_sentences(para)
+                for sentence in sentences:
+                    if current_size + len(sentence) > self.chunk_size and current_chunk:
+                        chunks.append({
+                            'content': '\n\n'.join(current_chunk),
+                            'title': f"Section {len(chunks) + 1}",
+                            'section_type': 'narrative'
+                        })
+                        # Add overlap
+                        overlap = current_chunk[-1] if current_chunk else ""
+                        current_chunk = [overlap, sentence] if overlap else [sentence]
+                        current_size = len(overlap) + len(sentence)
+                    else:
+                        current_chunk.append(sentence)
+                        current_size += len(sentence)
+            else:
+                # Regular paragraph processing
+                if current_size + para_size > self.chunk_size and current_chunk:
+                    chunks.append({
+                        'content': '\n\n'.join(current_chunk),
+                        'title': f"Section {len(chunks) + 1}",
+                        'section_type': 'narrative'
+                    })
+                    current_chunk = [para]
+                    current_size = para_size
+                else:
+                    current_chunk.append(para)
+                    current_size += para_size
+        
+        # Add final chunk
+        if current_chunk:
+            chunks.append({
+                'content': '\n\n'.join(current_chunk),
+                'title': f"Section {len(chunks) + 1}",
+                'section_type': 'narrative'
+            })
+        
+        return chunks
+    
+    def split_by_sentences(self, text: str) -> List[str]:
+        """Split text by sentences while preserving meaning"""
+        import re
+        
+        # Split by sentence-ending punctuation
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        
+        # Combine very short sentences with next one
+        combined_sentences = []
+        current = ""
+        
+        for sentence in sentences:
+            if len(current + sentence) < 50 and current:  # Very short, combine
+                current += " " + sentence
+            else:
+                if current:
+                    combined_sentences.append(current)
+                current = sentence
+        
+        if current:
+            combined_sentences.append(current)
+        
+        return combined_sentences
+    
+    def classify_chunk_content(self, content: str) -> str:
+        """Classify chunk content type for better retrieval"""
+        content_lower = content.lower()
+        
+        if '```' in content or 'code' in content_lower:
+            return 'code'
+        elif any(word in content_lower for word in ['table', '|', 'data', 'results']):
+            return 'tabular'
+        elif any(word in content_lower for word in ['step', 'process', 'procedure', 'method']):
+            return 'procedural'
+        elif any(word in content_lower for word in ['definition', 'concept', 'theory', 'explanation']):
+            return 'conceptual'
+        elif len(content.split()) > 100:
+            return 'detailed'
+        else:
+            return 'general'
+```
+
+### 4. Vector Database Integration and Indexing
+
+#### **Azure AI Search Index Creation and Population**
+
+The final step combines all processed content sources into a unified Azure AI Search index with optimized schema and search capabilities.
+
+```python
+from azure.search.documents.indexes import SearchIndexClient
+from azure.search.documents.indexes.models import *
+from azure.search.documents import SearchClient
+from azure.core.credentials import AzureKeyCredential
+
+class VectorDatabaseIntegrator:
+    def __init__(self):
+        self.index_client = SearchIndexClient(
+            endpoint=os.getenv("AZURE_SEARCH_ENDPOINT"),
+            credential=AzureKeyCredential(os.getenv("AZURE_SEARCH_KEY"))
+        )
+        
+        self.openai_client = AzureOpenAI(
+            api_key=os.getenv("AZURE_OPENAI_KEY"),
+            api_version="2024-02-01",
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+        )
+    
+    @celery.task(bind=True)
+    def create_unified_vector_index(self, user_id: int, job_id: str, scraped_content: List[Dict], 
+                                  document_content: List[Dict], index_name: str) -> str:
+        """Create unified Azure AI Search index with multi-source content"""
+        try:
+            # Update progress
+            total_chunks = len(scraped_content) + len(document_content)
+            self.update_state(
+                state='PROGRESS', 
+                meta={'current': 0, 'total': total_chunks + 2, 'status': 'Creating index schema'}
+            )
+            
+            # Create index schema
+            index_schema = self.create_hybrid_index_schema(index_name)
+            self.index_client.create_index(index_schema)
+            
+            # Get search client for the new index
+            search_client = SearchClient(
+                endpoint=os.getenv("AZURE_SEARCH_ENDPOINT"),
+                index_name=index_name,
+                credential=AzureKeyCredential(os.getenv("AZURE_SEARCH_KEY"))
+            )
+            
+            # Update progress
+            self.update_state(
+                state='PROGRESS',
+                meta={'current': 1, 'total': total_chunks + 2, 'status': 'Processing content'}
+            )
+            
+            # Combine and process all content
+            all_documents = []
+            processed_count = 0
+            
+            # Process scraped content
+            for chunk in scraped_content:
+                try:
+                    # Generate embedding
+                    embedding = self.generate_embedding(chunk['content'])
+                    
+                    # Create search document
+                    search_doc = {
+                        'id': f"web_{chunk['metadata']['chunk_id']}",
+                        'content': chunk['content'],
+                        'title': chunk.get('title', ''),
+                        'url': chunk.get('source_url', ''),
+                        'content_type': 'web_scraping',
+                        'source_type': chunk['metadata'].get('source_type', 'web'),
+                        'chunk_index': chunk['metadata'].get('chunk_index', 0),
+                        'word_count': len(chunk['content'].split()),
+                        'quality_score': chunk['metadata'].get('content_quality_score', 0.5),
+                        'scraped_at': chunk['metadata'].get('scraped_at', ''),
+                        'content_vector': embedding,
+                        'metadata_json': json.dumps(chunk['metadata'])
+                    }
+                    all_documents.append(search_doc)
+                    processed_count += 1
+                    
+                    # Update progress
+                    self.update_state(
+                        state='PROGRESS',
+                        meta={
+                            'current': processed_count + 1,
+                            'total': total_chunks + 2,
+                            'status': f'Processing web content: {processed_count}/{len(scraped_content)}'
+                        }
+                    )
+                    
+                except Exception as e:
+                    print(f"Error processing scraped chunk: {e}")
+                    continue
+            
+            # Process document content
+            doc_processed_count = 0
+            for chunk in document_content:
+                try:
+                    # Generate embedding
+                    embedding = self.generate_embedding(chunk['content'])
+                    
+                    # Create search document
+                    search_doc = {
+                        'id': f"doc_{chunk['metadata']['chunk_id']}",
+                        'content': chunk['content'],
+                        'title': chunk.get('title', ''),
+                        'url': f"document://{chunk['metadata'].get('filename', 'unknown')}",
+                        'content_type': 'uploaded_document',
+                        'source_type': chunk['metadata'].get('source_type', 'document'),
+                        'chunk_index': chunk['metadata'].get('chunk_index', 0),
+                        'word_count': len(chunk['content'].split()),
+                        'quality_score': chunk['metadata'].get('content_quality_score', 0.5),
+                        'uploaded_at': chunk['metadata'].get('processed_at', ''),
+                        'document_type': chunk['metadata'].get('extraction_method', ''),
+                        'content_vector': embedding,
+                        'metadata_json': json.dumps(chunk['metadata'])
+                    }
+                    all_documents.append(search_doc)
+                    doc_processed_count += 1
+                    
+                    # Update progress
+                    self.update_state(
+                        state='PROGRESS',
+                        meta={
+                            'current': processed_count + doc_processed_count + 1,
+                            'total': total_chunks + 2,
+                            'status': f'Processing documents: {doc_processed_count}/{len(document_content)}'
+                        }
+                    )
+                    
+                except Exception as e:
+                    print(f"Error processing document chunk: {e}")
+                    continue
+            
+            # Upload documents to Azure AI Search in batches
+            batch_size = 100
+            uploaded_count = 0
+            
+            for i in range(0, len(all_documents), batch_size):
+                batch = all_documents[i:i + batch_size]
+                search_client.upload_documents(documents=batch)
+                uploaded_count += len(batch)
+                
+                # Update progress
+                self.update_state(
+                    state='PROGRESS',
+                    meta={
+                        'current': total_chunks + 1,
+                        'total': total_chunks + 2,
+                        'status': f'Uploading to Azure AI Search: {uploaded_count}/{len(all_documents)}'
+                    }
+                )
+            
+            # Final progress update
+            self.update_state(
+                state='PROGRESS',
+                meta={
+                    'current': total_chunks + 2,
+                    'total': total_chunks + 2,
+                    'status': 'Completed'
+                }
+            )
+            
+            return {
+                'index_name': index_name,
+                'total_documents': len(all_documents),
+                'web_chunks': len(scraped_content),
+                'document_chunks': len(document_content),
+                'status': 'ready'
+            }
+            
+        except Exception as e:
+            self.update_state(state='FAILURE', meta={'error': str(e)})
+            raise
+    
+    def create_hybrid_index_schema(self, index_name: str) -> SearchIndex:
+        """Create optimized schema for hybrid content search"""
+        
+        # Define vector search configuration
+        vector_search = VectorSearch(
+            algorithms=[
+                HnswAlgorithmConfiguration(
+                    name="hnsw-algorithm",
+                    parameters=HnswParameters(
+                        m=4,              # Number of bi-directional links
+                        ef_construction=400,  # Size of dynamic candidate list
+                        ef_search=500,    # Size of dynamic candidate list for search
+                        metric=VectorSearchAlgorithmMetric.COSINE
+                    )
+                )
+            ],
+            profiles=[
+                VectorSearchProfile(
+                    name="vector-profile",
+                    algorithm_configuration_name="hnsw-algorithm",
+                    vectorizer="openai-vectorizer"
+                )
+            ],
+            vectorizers=[
+                AzureOpenAIVectorizer(
+                    name="openai-vectorizer",
+                    azure_open_ai_parameters=AzureOpenAIParameters(
+                        resource_uri=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                        deployment_id="text-embedding-3-large",
+                        api_key=os.getenv("AZURE_OPENAI_KEY")
+                    )
+                )
+            ]
+        )
+        
+        # Define fields
+        fields = [
+            SimpleField(name="id", type=SearchFieldDataType.String, key=True, sortable=True, filterable=True),
+            SearchableField(name="content", type=SearchFieldDataType.String, analyzer_name="en.microsoft"),
+            SearchableField(name="title", type=SearchFieldDataType.String, analyzer_name="en.microsoft"),
+            SimpleField(name="url", type=SearchFieldDataType.String, filterable=True),
+            SimpleField(name="content_type", type=SearchFieldDataType.String, filterable=True, facetable=True),
+            SimpleField(name="source_type", type=SearchFieldDataType.String, filterable=True, facetable=True),
+            SimpleField(name="chunk_index", type=SearchFieldDataType.Int32, sortable=True, filterable=True),
+            SimpleField(name="word_count", type=SearchFieldDataType.Int32, sortable=True, filterable=True),
+            SimpleField(name="quality_score", type=SearchFieldDataType.Double, sortable=True, filterable=True),
+            SimpleField(name="scraped_at", type=SearchFieldDataType.DateTimeOffset, sortable=True, filterable=True),
+            SimpleField(name="uploaded_at", type=SearchFieldDataType.DateTimeOffset, sortable=True, filterable=True),
+            SimpleField(name="document_type", type=SearchFieldDataType.String, filterable=True, facetable=True),
+            SimpleField(name="metadata_json", type=SearchFieldDataType.String),
+            VectorSearchField(
+                name="content_vector",
+                type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
+                searchable=True,
+                vector_search_dimensions=1536,  # text-embedding-3-large dimensions
+                vector_search_profile_name="vector-profile"
+            )
+        ]
+        
+        # Create semantic search configuration
+        semantic_config = SemanticConfiguration(
+            name="semantic-config",
+            prioritized_fields=SemanticPrioritizedFields(
+                title_field=SemanticField(field_name="title"),
+                content_fields=[SemanticField(field_name="content")],
+                keywords_fields=[SemanticField(field_name="url"), SemanticField(field_name="content_type")]
+            )
+        )
+        
+        semantic_search = SemanticSearch(configurations=[semantic_config])
+        
+        # Create the index
+        index = SearchIndex(
+            name=index_name,
+            fields=fields,
+            vector_search=vector_search,
+            semantic_search=semantic_search
+        )
+        
+        return index
+    
+    def generate_embedding(self, text: str) -> List[float]:
+        """Generate embeddings using Azure OpenAI"""
+        try:
+            response = self.openai_client.embeddings.create(
+                input=text,
+                model="text-embedding-3-large"
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            print(f"Error generating embedding: {e}")
+            # Return zero vector as fallback
+            return [0.0] * 1536
+```
+
+This comprehensive data ingestion pipeline ensures that both web scraped content and uploaded documents are processed with the same level of sophistication, maintaining source attribution, optimizing for search and retrieval, and providing a unified interface for AI-powered querying across all content sources.
+
 ## User Interface Design
 
 ### 1. Login Page (`templates/login.html`)
@@ -2297,6 +3564,978 @@ class EnhancedDashboard extends Dashboard {
 document.addEventListener('DOMContentLoaded', () => {
     window.dashboard = new EnhancedDashboard();
 });
+```
+
+## Asynchronous Processing with Celery - Enabling Non-Blocking Operations
+
+### Understanding Asynchronous Architecture
+
+The USYD Web Crawler and RAG solution relies heavily on **Celery**, a distributed task queue system, to handle all computationally intensive and time-consuming operations without blocking the user interface. Think of Celery as your system's background workforce—a team of dedicated workers that handle the heavy lifting while the main application remains responsive and available for user interactions.
+
+When you initiate a web scraping job or start creating a vector database, you're not waiting for the entire process to complete before you can do anything else. Instead, the system immediately hands off the work to background workers and gives you a job ID to track progress. This architecture enables several key capabilities:
+
+**1. User Experience Excellence**: Users can start multiple scraping jobs, upload documents, and browse existing databases simultaneously without any operation blocking another.
+
+**2. System Scalability**: As workload increases, additional Celery workers can be deployed to handle more concurrent operations.
+
+**3. Fault Tolerance**: If one task fails, it doesn't affect other running operations or the main application.
+
+**4. Resource Optimization**: Heavy computational tasks run in dedicated worker processes, keeping the main web application lightweight and responsive.
+
+### Celery Architecture and Configuration
+
+The Celery integration uses **Redis** as both the message broker (task queue) and result backend (progress tracking and result storage). This combination provides fast, reliable task distribution and real-time progress monitoring.
+
+```python
+# worker.py - Celery Application Configuration
+from celery import Celery
+import os
+import logging
+from datetime import timedelta
+
+# Configure logging for worker processes
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/celery.log'),
+        logging.StreamHandler()
+    ]
+)
+
+# Initialize Celery with comprehensive configuration
+celery_app = Celery(
+    'usyd_rag_worker',
+    broker=os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
+    backend=os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
+    include=[
+        'services.scraper',
+        'services.vector_store', 
+        'services.document_processor'
+    ]
+)
+
+# Celery Configuration for Production Reliability
+celery_app.conf.update(
+    # Task routing and execution
+    task_serializer='json',
+    accept_content=['json'],
+    result_serializer='json',
+    timezone='UTC',
+    enable_utc=True,
+    
+    # Worker configuration
+    worker_prefetch_multiplier=1,  # Fair task distribution
+    worker_max_tasks_per_child=1000,  # Prevent memory leaks
+    worker_disable_rate_limits=False,
+    
+    # Task result configuration
+    result_expires=3600,  # Results kept for 1 hour
+    result_compression='gzip',
+    
+    # Task execution settings
+    task_acks_late=True,  # Acknowledge only after completion
+    task_reject_on_worker_lost=True,  # Retry on worker failure
+    task_track_started=True,  # Enable progress tracking
+    
+    # Retry configuration
+    task_default_retry_delay=60,  # 1 minute between retries
+    task_max_retries=3,
+    
+    # Rate limiting for external services
+    task_annotations={
+        'services.scraper.scrape_single_page': {'rate_limit': '10/m'},
+        'services.scraper.scrape_website_deep': {'rate_limit': '5/m'},
+        'services.vector_store.generate_embeddings': {'rate_limit': '30/m'},
+    },
+    
+    # Beat scheduler for periodic tasks
+    beat_schedule={
+        'cleanup-old-jobs': {
+            'task': 'services.maintenance.cleanup_old_jobs',
+            'schedule': timedelta(hours=24),
+        },
+        'health-check': {
+            'task': 'services.maintenance.health_check',
+            'schedule': timedelta(minutes=5),
+        },
+    },
+)
+
+# Custom task base class for enhanced error handling
+from celery import Task
+
+class CallbackTask(Task):
+    """Base task class with comprehensive error handling and logging"""
+    
+    def on_success(self, retval, task_id, args, kwargs):
+        """Called when task succeeds"""
+        logging.info(f"Task {self.name} [{task_id}] succeeded: {retval}")
+    
+    def on_failure(self, exc, task_id, args, kwargs, einfo):
+        """Called when task fails"""
+        logging.error(f"Task {self.name} [{task_id}] failed: {exc}")
+        
+        # Send failure notification if needed
+        if hasattr(self, 'notify_failure'):
+            self.notify_failure(exc, task_id, args, kwargs)
+    
+    def on_retry(self, exc, task_id, args, kwargs, einfo):
+        """Called when task is retried"""
+        logging.warning(f"Task {self.name} [{task_id}] retrying: {exc}")
+
+# Set default task base class
+celery_app.Task = CallbackTask
+```
+
+### Task Definition and Progress Tracking
+
+Every major operation in the system is implemented as a Celery task with comprehensive progress tracking and error handling:
+
+```python
+# services/scraper.py - Web Scraping Tasks with Progress Updates
+from celery import current_task
+from celery.exceptions import Ignore
+import time
+from datetime import datetime
+
+@celery_app.task(bind=True, base=CallbackTask)
+def scrape_website_comprehensive(self, url, scraping_config, user_id, job_id):
+    """
+    Comprehensive web scraping with real-time progress updates
+    
+    This task demonstrates the full power of Celery's progress tracking,
+    allowing users to monitor complex, long-running operations in real-time
+    """
+    try:
+        # Initialize progress tracking
+        total_steps = self.calculate_total_steps(scraping_config)
+        current_step = 0
+        
+        # Update initial state
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'current': current_step,
+                'total': total_steps,
+                'status': 'Initializing web scraper...',
+                'started_at': datetime.utcnow().isoformat(),
+                'url': url,
+                'job_id': job_id
+            }
+        )
+        
+        # Initialize scraping components
+        scraper = ScrapingService()
+        current_step += 1
+        
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'current': current_step,
+                'total': total_steps,
+                'status': 'Analyzing website structure...',
+                'details': 'Examining robots.txt and site architecture'
+            }
+        )
+        
+        # Analyze website structure and create scraping plan
+        site_analysis = scraper.analyze_website_structure(url)
+        current_step += 1
+        
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'current': current_step,
+                'total': total_steps,
+                'status': 'Beginning content extraction...',
+                'details': f'Found {site_analysis.estimated_pages} pages to process'
+            }
+        )
+        
+        # Execute scraping based on configuration
+        scraped_content = []
+        
+        if scraping_config['type'] == 'single_page':
+            content = scraper.scrape_single_page(url, self.update_progress)
+            scraped_content.append(content)
+            
+        elif scraping_config['type'] == 'deep_crawl':
+            scraped_content = scraper.scrape_deep_crawl(
+                url, 
+                max_depth=scraping_config.get('max_depth', 3),
+                max_pages=scraping_config.get('max_pages', 100),
+                progress_callback=self.update_progress
+            )
+            
+        elif scraping_config['type'] == 'sitemap':
+            scraped_content = scraper.scrape_from_sitemap(
+                url,
+                max_pages=scraping_config.get('max_pages', 500),
+                progress_callback=self.update_progress
+            )
+        
+        # Final processing and validation
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'current': total_steps - 1,
+                'total': total_steps,
+                'status': 'Finalizing scraped content...',
+                'details': f'Successfully scraped {len(scraped_content)} pages'
+            }
+        )
+        
+        # Prepare final result
+        result = {
+            'job_id': job_id,
+            'url': url,
+            'scraping_type': scraping_config['type'],
+            'pages_scraped': len(scraped_content),
+            'content': scraped_content,
+            'completed_at': datetime.utcnow().isoformat(),
+            'processing_time': time.time() - self.request.start_time if hasattr(self.request, 'start_time') else 0,
+            'user_id': user_id
+        }
+        
+        # Final success state
+        self.update_state(
+            state='SUCCESS',
+            meta={
+                'current': total_steps,
+                'total': total_steps,
+                'status': 'Scraping completed successfully!',
+                'result': result
+            }
+        )
+        
+        return result
+        
+    except Exception as exc:
+        # Comprehensive error handling
+        error_details = {
+            'error': str(exc),
+            'error_type': type(exc).__name__,
+            'job_id': job_id,
+            'url': url,
+            'failed_at': datetime.utcnow().isoformat()
+        }
+        
+        self.update_state(
+            state='FAILURE',
+            meta=error_details
+        )
+        
+        # Re-raise to trigger retry logic if appropriate
+        raise Ignore()
+    
+    def update_progress(self, current, total, message, details=None):
+        """Helper method for progress updates during scraping"""
+        meta = {
+            'current': current,
+            'total': total,
+            'status': message
+        }
+        if details:
+            meta['details'] = details
+            
+        self.update_state(state='PROGRESS', meta=meta)
+    
+    def calculate_total_steps(self, config):
+        """Calculate total steps for progress tracking"""
+        base_steps = 5  # Initialize, analyze, process, finalize, complete
+        
+        if config['type'] == 'single_page':
+            return base_steps + 1
+        elif config['type'] == 'deep_crawl':
+            return base_steps + config.get('max_pages', 100)
+        elif config['type'] == 'sitemap':
+            return base_steps + config.get('max_pages', 500)
+        
+        return base_steps
+```
+
+### Vector Database Creation with Comprehensive Progress Tracking
+
+The vector database creation process showcases Celery's ability to handle complex, multi-stage operations:
+
+```python
+# services/vector_store.py - Vector Database Creation Task
+@celery_app.task(bind=True, base=CallbackTask)
+def create_vector_database_comprehensive(self, db_config, scraped_content, uploaded_documents, user_id):
+    """
+    Create vector database with multi-source content integration
+    
+    This task demonstrates handling of complex data processing pipelines
+    with multiple input sources and detailed progress reporting
+    """
+    try:
+        # Calculate total work units
+        total_chunks = 0
+        if scraped_content:
+            total_chunks += sum(len(job['content']) for job in scraped_content)
+        if uploaded_documents:
+            total_chunks += len(uploaded_documents) * 10  # Estimated chunks per document
+        
+        processing_steps = 6  # Schema, chunk, embed, index, validate, finalize
+        total_operations = total_chunks + processing_steps
+        current_operation = 0
+        
+        # Initialize progress
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'current': current_operation,
+                'total': total_operations,
+                'status': 'Creating Azure AI Search index schema...',
+                'phase': 'initialization'
+            }
+        )
+        
+        # Create Azure AI Search index
+        vector_service = VectorStoreService()
+        index_name = vector_service.create_search_index(db_config['name'])
+        current_operation += 1
+        
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'current': current_operation,
+                'total': total_operations,
+                'status': 'Processing scraped web content...',
+                'phase': 'content_processing'
+            }
+        )
+        
+        # Process scraped content
+        all_chunks = []
+        if scraped_content:
+            for job in scraped_content:
+                for page in job['content']:
+                    # Create document chunks
+                    chunks = vector_service.create_chunks(page['content'], page['metadata'])
+                    all_chunks.extend(chunks)
+                    current_operation += 1
+                    
+                    # Update progress every 10 chunks
+                    if current_operation % 10 == 0:
+                        self.update_state(
+                            state='PROGRESS',
+                            meta={
+                                'current': current_operation,
+                                'total': total_operations,
+                                'status': f'Processed {len(all_chunks)} content chunks...',
+                                'phase': 'content_processing'
+                            }
+                        )
+        
+        # Process uploaded documents
+        if uploaded_documents:
+            self.update_state(
+                state='PROGRESS',
+                meta={
+                    'current': current_operation,
+                    'total': total_operations,
+                    'status': 'Processing uploaded documents...',
+                    'phase': 'document_processing'
+                }
+            )
+            
+            doc_processor = DocumentProcessor()
+            for doc in uploaded_documents:
+                doc_chunks = doc_processor.process_document(doc['blob_name'], doc['filename'])
+                all_chunks.extend(doc_chunks)
+                current_operation += 10  # Estimated operations per document
+                
+                self.update_state(
+                    state='PROGRESS',
+                    meta={
+                        'current': current_operation,
+                        'total': total_operations,
+                        'status': f'Processed document: {doc["filename"]}',
+                        'phase': 'document_processing'
+                    }
+                )
+        
+        # Generate embeddings
+        current_operation += 1
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'current': current_operation,
+                'total': total_operations,
+                'status': f'Generating embeddings for {len(all_chunks)} chunks...',
+                'phase': 'embedding_generation'
+            }
+        )
+        
+        # Generate embeddings in batches
+        embedding_service = EmbeddingService()
+        embeddings = embedding_service.generate_batch_embeddings(
+            [chunk['content'] for chunk in all_chunks],
+            progress_callback=lambda i: self.update_state(
+                state='PROGRESS',
+                meta={
+                    'current': current_operation + (i / len(all_chunks)),
+                    'total': total_operations,
+                    'status': f'Generated embeddings: {i}/{len(all_chunks)}',
+                    'phase': 'embedding_generation'
+                }
+            )
+        )
+        current_operation += 1
+        
+        # Upload to Azure AI Search
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'current': current_operation,
+                'total': total_operations,
+                'status': 'Uploading to Azure AI Search...',
+                'phase': 'index_upload'
+            }
+        )
+        
+        search_documents = vector_service.prepare_search_documents(all_chunks, embeddings)
+        vector_service.upload_to_search_index(index_name, search_documents)
+        current_operation += 1
+        
+        # Validate index
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'current': current_operation,
+                'total': total_operations,
+                'status': 'Validating vector database...',
+                'phase': 'validation'
+            }
+        )
+        
+        validation_results = vector_service.validate_index(index_name)
+        current_operation += 1
+        
+        # Finalize
+        result = {
+            'database_id': db_config['id'],
+            'index_name': index_name,
+            'total_documents': len(search_documents),
+            'web_content_chunks': len([c for c in all_chunks if c['source_type'] == 'web']),
+            'document_chunks': len([c for c in all_chunks if c['source_type'] == 'document']),
+            'validation_results': validation_results,
+            'created_at': datetime.utcnow().isoformat(),
+            'status': 'ready'
+        }
+        
+        self.update_state(
+            state='SUCCESS',
+            meta={
+                'current': total_operations,
+                'total': total_operations,
+                'status': 'Vector database created successfully!',
+                'phase': 'completed',
+                'result': result
+            }
+        )
+        
+        return result
+        
+    except Exception as exc:
+        self.update_state(
+            state='FAILURE',
+            meta={
+                'error': str(exc),
+                'phase': 'error',
+                'failed_at': datetime.utcnow().isoformat()
+            }
+        )
+        raise
+```
+
+### Worker Management and Monitoring
+
+The system includes comprehensive worker management capabilities:
+
+```python
+# services/worker_management.py - Worker Health and Management
+@celery_app.task
+def health_check():
+    """Periodic health check for worker processes"""
+    import psutil
+    import os
+    
+    worker_stats = {
+        'timestamp': datetime.utcnow().isoformat(),
+        'worker_id': os.getpid(),
+        'memory_usage': psutil.Process().memory_info().rss / 1024 / 1024,  # MB
+        'cpu_percent': psutil.Process().cpu_percent(),
+        'active_tasks': len(current_task.request.active_tasks) if hasattr(current_task.request, 'active_tasks') else 0
+    }
+    
+    # Log health metrics
+    logging.info(f"Worker health check: {worker_stats}")
+    
+    # Alert if memory usage is high
+    if worker_stats['memory_usage'] > 1000:  # 1GB
+        logging.warning(f"High memory usage detected: {worker_stats['memory_usage']}MB")
+    
+    return worker_stats
+
+@celery_app.task
+def cleanup_old_jobs():
+    """Clean up old job results and temporary files"""
+    try:
+        # Clean up old Celery results
+        celery_app.control.purge()
+        
+        # Clean up temporary files older than 24 hours
+        import glob
+        import time
+        
+        temp_files = glob.glob('/tmp/usyd_rag_*')
+        current_time = time.time()
+        
+        for file_path in temp_files:
+            if os.path.isfile(file_path):
+                file_age = current_time - os.path.getctime(file_path)
+                if file_age > 86400:  # 24 hours
+                    os.remove(file_path)
+                    logging.info(f"Cleaned up old temp file: {file_path}")
+        
+        return {"cleaned_files": len(temp_files), "timestamp": datetime.utcnow().isoformat()}
+        
+    except Exception as e:
+        logging.error(f"Cleanup job failed: {e}")
+        raise
+```
+
+## Advanced Crawl4AI Integration - Intelligent Web Content Extraction
+
+### Understanding Modern Web Scraping Challenges
+
+Modern websites present unprecedented challenges for traditional web scraping approaches. Unlike the static HTML pages of the early web, today's sites are complex, interactive applications that rely heavily on JavaScript, implement sophisticated anti-bot measures, and structure content in countless different ways. The USYD Web Crawler addresses these challenges by leveraging **Crawl4AI 0.3+**, a next-generation web scraping framework specifically designed for AI applications.
+
+Crawl4AI represents a paradigm shift from simple HTML extraction to intelligent content understanding. Instead of just downloading and parsing HTML tags, it comprehends the semantic structure of web pages, distinguishes between valuable content and website overhead (like navigation menus and advertisements), and produces clean, AI-ready text that preserves meaning and context.
+
+### **Core Crawl4AI Capabilities and Configuration**
+
+The integration with Crawl4AI provides several advanced capabilities that set this solution apart from traditional web scraping approaches:
+
+**1. AI-Aware Content Extraction**: Crawl4AI understands content semantics and automatically identifies the main content areas while filtering out boilerplate elements.
+
+**2. JavaScript Rendering**: Full browser automation capabilities handle Single Page Applications (SPAs) and dynamically loaded content.
+
+**3. Intelligent Content Structuring**: Preserves important formatting, maintains hierarchical relationships, and optimizes text structure for AI processing.
+
+**4. Ethical Scraping Controls**: Built-in respect for robots.txt, rate limiting, and polite crawling practices.
+
+```python
+# services/crawl4ai_service.py - Advanced Crawl4AI Integration
+from crawl4ai import WebCrawler
+from crawl4ai.extraction_strategy import LLMExtractionStrategy, CosineStrategy
+from crawl4ai.chunking_strategy import RegexChunking, NLPChunking
+from crawl4ai.content_filter import PruningContentFilter
+import asyncio
+import logging
+from typing import Dict, List, Optional, Callable
+
+class AdvancedCrawl4AIService:
+    """
+    Comprehensive Crawl4AI integration for intelligent web content extraction
+    
+    This service demonstrates the full power of Crawl4AI for creating AI-ready
+    content from complex modern websites
+    """
+    
+    def __init__(self):
+        self.crawler = None
+        self.session_config = self._create_session_config()
+        self.content_filters = self._setup_content_filters()
+        self.extraction_strategies = self._setup_extraction_strategies()
+        
+    def _create_session_config(self) -> Dict:
+        """Create optimized browser session configuration"""
+        return {
+            # Browser configuration
+            'headless': True,
+            'browser_type': 'chromium',  # Most compatible with modern sites
+            'viewport': {'width': 1920, 'height': 1080},
+            'user_agent': 'USYD-RAG-Crawler/1.0 (+https://university.edu.au/contact)',
+            
+            # Performance optimization
+            'page_timeout': 30000,  # 30 seconds
+            'wait_for_js': 2000,    # Wait for JavaScript execution
+            'screenshot': False,     # Disable screenshots for speed
+            'remove_overlay_elements': True,  # Remove popups and overlays
+            
+            # Content processing
+            'word_count_threshold': 20,  # Minimum words per content block
+            'only_text': False,  # Include some HTML structure for context
+            'bypass_cache': False,  # Use caching for efficiency
+            
+            # Ethical scraping
+            'delay_before_return_html': 2.0,  # Polite delay
+            'semaphore_count': 3,  # Limit concurrent requests
+            'auto_retry': True,
+            'retry_delay': 5.0,
+        }
+    
+    def _setup_content_filters(self) -> Dict:
+        """Configure content filtering for different website types"""
+        return {
+            'news_sites': PruningContentFilter(
+                remove_selectors=[
+                    'nav', 'header', 'footer', '.advertisement', '.ad-container',
+                    '.social-share', '.comments', '.sidebar', '.related-articles',
+                    '.newsletter-signup', '.cookie-notice'
+                ],
+                keep_selectors=[
+                    'article', '.article-content', '.story-body', '.entry-content',
+                    'main', '.main-content', '.post-content'
+                ]
+            ),
+            
+            'documentation': PruningContentFilter(
+                remove_selectors=[
+                    'nav', 'header', 'footer', '.sidebar', '.toc-sidebar',
+                    '.edit-page-link', '.breadcrumb'
+                ],
+                keep_selectors=[
+                    'main', '.content', '.documentation', '.doc-content',
+                    'article', '.markdown-body', '.rst-content'
+                ]
+            ),
+            
+            'e_commerce': PruningContentFilter(
+                remove_selectors=[
+                    'nav', 'header', 'footer', '.recommendations', '.reviews',
+                    '.add-to-cart', '.pricing-sidebar', '.similar-products'
+                ],
+                keep_selectors=[
+                    '.product-description', '.product-details', '.specifications',
+                    '.product-content', 'main'
+                ]
+            ),
+            
+            'academic': PruningContentFilter(
+                remove_selectors=[
+                    'nav', 'header', 'footer', '.citation-sidebar', '.author-info',
+                    '.reference-list', '.download-links'
+                ],
+                keep_selectors=[
+                    'article', '.article-content', '.abstract', '.full-text',
+                    'main', '.paper-content'
+                ]
+            )
+        }
+    
+    def _setup_extraction_strategies(self) -> Dict:
+        """Configure different extraction strategies for various content types"""
+        return {
+            'semantic_extraction': LLMExtractionStrategy(
+                provider="openai",
+                api_token=os.getenv("AZURE_OPENAI_KEY"),
+                instruction="""
+                Extract the main content from this webpage, focusing on:
+                1. Primary information and key concepts
+                2. Important details and explanations
+                3. Structured data like lists, tables, and procedures
+                4. Relevant examples and case studies
+                
+                Ignore navigation menus, advertisements, comments, and boilerplate content.
+                Preserve the logical structure and hierarchy of information.
+                Ensure the extracted content is comprehensive yet concise.
+                """,
+                extraction_type="block",
+                apply_chunking=False  # We'll handle chunking separately
+            ),
+            
+            'cosine_similarity': CosineStrategy(
+                semantic_filter="main content, important information, key concepts",
+                word_count_threshold=30,
+                max_dist=0.2,
+                linkage_method='ward',
+                top_k=5
+            )
+        }
+    
+    async def analyze_website_structure(self, url: str) -> Dict:
+        """
+        Analyze website structure to determine optimal scraping strategy
+        
+        This method examines the target website to understand its architecture,
+        content structure, and technical characteristics, enabling the system
+        to choose the most effective scraping approach.
+        """
+        try:
+            # Initialize crawler with basic configuration
+            if not self.crawler:
+                self.crawler = WebCrawler(**self.session_config)
+                await self.crawler.astart()
+            
+            # Perform initial analysis
+            result = await self.crawler.arun(url=url, bypass_cache=True)
+            
+            if not result.success:
+                raise Exception(f"Failed to analyze website: {result.error_message}")
+            
+            # Analyze page structure
+            html_content = result.html
+            analysis = {
+                'url': url,
+                'title': result.metadata.get('title', 'Unknown'),
+                'content_length': len(result.cleaned_html),
+                'word_count': len(result.markdown.split()) if result.markdown else 0,
+                'has_javascript': 'script' in html_content.lower(),
+                'has_ajax': any(term in html_content.lower() for term in ['ajax', 'xhr', 'fetch']),
+                'content_type': self._classify_website_type(html_content, result.metadata),
+                'structure_complexity': self._assess_structure_complexity(html_content),
+                'scraping_challenges': self._identify_scraping_challenges(html_content),
+                'recommended_strategy': None
+            }
+            
+            # Determine recommended scraping strategy
+            analysis['recommended_strategy'] = self._recommend_scraping_strategy(analysis)
+            
+            # Check for sitemap
+            sitemap_urls = await self._check_for_sitemap(url)
+            analysis['has_sitemap'] = len(sitemap_urls) > 0
+            analysis['sitemap_urls'] = sitemap_urls
+            
+            # Estimate crawling scope
+            if analysis['has_sitemap']:
+                analysis['estimated_pages'] = len(sitemap_urls)
+            else:
+                # Estimate based on internal links
+                internal_links = self._extract_internal_links(html_content, url)
+                analysis['estimated_pages'] = min(len(internal_links), 1000)  # Cap estimate
+            
+            return analysis
+            
+        except Exception as e:
+            logging.error(f"Website analysis failed for {url}: {e}")
+            return {
+                'url': url,
+                'error': str(e),
+                'recommended_strategy': 'single_page',  # Safe fallback
+                'estimated_pages': 1
+            }
+    
+    async def scrape_with_adaptive_strategy(self, url: str, config: Dict, 
+                                          progress_callback: Optional[Callable] = None) -> List[Dict]:
+        """
+        Intelligent scraping that adapts strategy based on website characteristics
+        
+        This method demonstrates Crawl4AI's ability to automatically adjust
+        its approach based on the specific characteristics of each website,
+        ensuring optimal content extraction regardless of the site's architecture.
+        """
+        try:
+            # Analyze website first if not already done
+            if 'analysis' not in config:
+                config['analysis'] = await self.analyze_website_structure(url)
+            
+            analysis = config['analysis']
+            content_type = analysis.get('content_type', 'general')
+            
+            # Select appropriate content filter
+            content_filter = self.content_filters.get(content_type, 
+                                                    self.content_filters['news_sites'])
+            
+            # Select extraction strategy
+            if analysis.get('structure_complexity', 'medium') == 'high':
+                extraction_strategy = self.extraction_strategies['semantic_extraction']
+            else:
+                extraction_strategy = self.extraction_strategies['cosine_similarity']
+            
+            # Configure chunking strategy based on content type
+            if content_type == 'documentation':
+                chunking_strategy = RegexChunking(
+                    patterns=[r'\n## ', r'\n### ', r'\n\n'],
+                    max_length=1200,  # Longer chunks for technical content
+                    overlap=150
+                )
+            else:
+                chunking_strategy = NLPChunking(
+                    max_length=1000,
+                    overlap=100
+                )
+            
+            # Initialize crawler with optimized configuration
+            if not self.crawler:
+                session_config = self.session_config.copy()
+                
+                # Adjust configuration based on website analysis
+                if analysis.get('has_javascript'):
+                    session_config['wait_for_js'] = 5000  # Longer wait for JS sites
+                
+                if analysis.get('structure_complexity') == 'high':
+                    session_config['page_timeout'] = 45000  # More time for complex sites
+                
+                self.crawler = WebCrawler(**session_config)
+                await self.crawler.astart()
+            
+            # Execute scraping based on determined strategy
+            scraped_pages = []
+            
+            if config.get('type') == 'single_page':
+                page_result = await self._scrape_single_page_advanced(
+                    url, content_filter, extraction_strategy, chunking_strategy
+                )
+                if page_result:
+                    scraped_pages.append(page_result)
+                    
+            elif config.get('type') == 'deep_crawl':
+                scraped_pages = await self._scrape_deep_crawl_advanced(
+                    url, config, content_filter, extraction_strategy, 
+                    chunking_strategy, progress_callback
+                )
+                
+            elif config.get('type') == 'sitemap' and analysis.get('has_sitemap'):
+                scraped_pages = await self._scrape_from_sitemap_advanced(
+                    url, analysis['sitemap_urls'], config, content_filter,
+                    extraction_strategy, chunking_strategy, progress_callback
+                )
+            
+            return scraped_pages
+            
+        except Exception as e:
+            logging.error(f"Adaptive scraping failed for {url}: {e}")
+            raise
+        
+        finally:
+            if self.crawler:
+                await self.crawler.aclose()
+                self.crawler = None
+    
+    async def _scrape_single_page_advanced(self, url: str, content_filter, 
+                                         extraction_strategy, chunking_strategy) -> Dict:
+        """Advanced single page scraping with intelligent content extraction"""
+        try:
+            # Execute crawling with all optimizations
+            result = await self.crawler.arun(
+                url=url,
+                content_filter=content_filter,
+                extraction_strategy=extraction_strategy,
+                chunking_strategy=chunking_strategy,
+                bypass_cache=False
+            )
+            
+            if not result.success:
+                logging.warning(f"Failed to scrape {url}: {result.error_message}")
+                return None
+            
+            # Process and enhance extracted content
+            processed_content = {
+                'url': url,
+                'title': result.metadata.get('title', ''),
+                'content': result.extracted_content or result.markdown,
+                'content_length': len(result.extracted_content or result.markdown),
+                'word_count': len((result.extracted_content or result.markdown).split()),
+                'links': {
+                    'internal': result.links.get('internal', []),
+                    'external': result.links.get('external', [])
+                },
+                'media': result.media or [],
+                'metadata': {
+                    'scraped_at': datetime.utcnow().isoformat(),
+                    'content_type': result.metadata.get('content-type', ''),
+                    'language': result.metadata.get('language', 'en'),
+                    'description': result.metadata.get('description', ''),
+                    'keywords': result.metadata.get('keywords', ''),
+                    'author': result.metadata.get('author', ''),
+                    'published_date': result.metadata.get('published_time', ''),
+                    'crawl4ai_version': result.metadata.get('crawl4ai_version', ''),
+                    'extraction_strategy': type(extraction_strategy).__name__,
+                    'content_quality_score': self._calculate_content_quality(result)
+                }
+            }
+            
+            return processed_content
+            
+        except Exception as e:
+            logging.error(f"Advanced single page scraping failed for {url}: {e}")
+            return None
+    
+    def _classify_website_type(self, html_content: str, metadata: Dict) -> str:
+        """Classify website type for optimal scraping strategy"""
+        html_lower = html_content.lower()
+        title = metadata.get('title', '').lower()
+        description = metadata.get('description', '').lower()
+        
+        # Check for news sites
+        if any(term in html_lower or term in title for term in [
+            'news', 'article', 'story', 'breaking', 'reporter', 'journalist'
+        ]):
+            return 'news_sites'
+        
+        # Check for documentation
+        if any(term in html_lower or term in title for term in [
+            'documentation', 'docs', 'api', 'guide', 'tutorial', 'reference'
+        ]):
+            return 'documentation'
+        
+        # Check for e-commerce
+        if any(term in html_lower for term in [
+            'add to cart', 'buy now', 'price', 'product', 'shop', 'store'
+        ]):
+            return 'e_commerce'
+        
+        # Check for academic content
+        if any(term in html_lower or term in title for term in [
+            'research', 'paper', 'study', 'academic', 'journal', 'university'
+        ]):
+            return 'academic'
+        
+        return 'general'
+    
+    def _assess_structure_complexity(self, html_content: str) -> str:
+        """Assess the structural complexity of the webpage"""
+        # Count various complexity indicators
+        script_count = html_content.lower().count('<script')
+        div_count = html_content.lower().count('<div')
+        class_count = html_content.lower().count('class=')
+        id_count = html_content.lower().count('id=')
+        
+        complexity_score = (script_count * 2) + (div_count * 0.1) + (class_count * 0.05) + (id_count * 0.1)
+        
+        if complexity_score > 100:
+            return 'high'
+        elif complexity_score > 50:
+            return 'medium'
+        else:
+            return 'low'
+    
+    def _calculate_content_quality(self, result) -> float:
+        """Calculate content quality score based on various factors"""
+        if not result.extracted_content and not result.markdown:
+            return 0.0
+        
+        content = result.extracted_content or result.markdown
+        
+        # Factor 1: Content length (optimal range: 500-5000 characters)
+        length_score = min(len(content) / 5000, 1.0) if len(content) < 5000 else max(1.0 - (len(content) - 5000) / 10000, 0.5)
+        
+        # Factor 2: Word count
+        words = content.split()
+        word_score = min(len(words) / 500, 1.0) if len(words) < 500 else max(1.0 - (len(words) - 500) / 1000, 0.5)
+        
+        # Factor 3: Structure indicators (headings, lists, paragraphs)
+        structure_indicators = content.count('\n#') + content.count('\n-') + content.count('\n\n')
+        structure_score = min(structure_indicators / 10, 1.0)
+        
+        # Factor 4: Information density (avoid repetitive content)
+        unique_words = len(set(word.lower() for word in words if len(word) > 3))
+        density_score = min(unique_words / len(words), 1.0) if words else 0.0
+        
+        # Combined score with weighted factors
+        quality_score = (
+            length_score * 0.25 +
+            word_score * 0.25 +
+            structure_score * 0.25 +
+            density_score * 0.25
+        )
+        
+        return round(quality_score, 3)
 ```
 
 ## Security Considerations
